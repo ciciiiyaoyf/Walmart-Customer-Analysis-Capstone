@@ -6,6 +6,12 @@
   "max_depth": 1,
   "learning_rate": 0.03
  },
+ "action_model_choice": {
+  "PCT_10": "xgb",
+  "PCT_20": "xgb",
+  "FREE_SHIP": "action_mean"
+ },
+ "selection": "minimum CP06 RMSE against action-mean baseline; CP07 evaluation after choice",
  "clip": "estimated_promo_cost = max(prediction, 0)",
  "NO_OFFER": "deterministic 0",
  "train_rows": {

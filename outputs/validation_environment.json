@@ -1,0 +1,18 @@
+{
+  "python": "3.13.9",
+  "platform": "Windows-11-10.0.26300-SP0",
+  "source_commit": "ea950d0e9011ff0e105f5d93758ab54944a7c75f",
+  "packages": {
+    "numpy": "2.3.5",
+    "pandas": "2.2.3",
+    "sklearn": "1.9.0",
+    "scipy": "1.16.3",
+    "xgboost": "3.4.1",
+    "pyarrow": "21.0.0",
+    "joblib": "1.5.2",
+    "matplotlib": "3.10.6",
+    "nbclient": "0.10.2",
+    "nbformat": "5.10.4"
+  },
+  "execution": "notebooks 02-10 from committed cleaned snapshot; 01 raw CSV validation not rerun"
+}

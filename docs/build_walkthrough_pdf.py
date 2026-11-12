@@ -1,10 +1,10 @@
 """Builds Walmart_Pipeline_Walkthrough.pdf from Walmart_Pipeline_Walkthrough.md.
-Run from the Pipeline folder:  python docs/make_diagrams.py  then  python docs/build_walkthrough_pdf.py
+Run from the repository root: python docs/build_walkthrough_pdf.py
 Supports: #/##/### headings, paragraphs, **bold**, *italic*, `code`, nested -/1. lists, | tables |, > callouts,
 ![caption](image) and <!-- pagebreak -->."""
 import re
+import os
 from pathlib import Path
-import matplotlib
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import ParagraphStyle
@@ -17,16 +17,33 @@ from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer, Table, Tab
 
 DOCS = Path(__file__).resolve().parent
 SRC, OUT = DOCS / "Walmart_Pipeline_Walkthrough.md", DOCS / "Walmart_Pipeline_Walkthrough.pdf"
-FONTS = Path(matplotlib.get_data_path()) / "fonts" / "ttf"
-for name, f in [("DV", "DejaVuSans.ttf"), ("DV-B", "DejaVuSans-Bold.ttf"), ("DV-I", "DejaVuSans-Oblique.ttf"),
-                ("DV-BI", "DejaVuSans-BoldOblique.ttf"), ("DVM", "DejaVuSansMono.ttf")]:
+try:
+    import matplotlib
+    FONTS = Path(matplotlib.get_data_path()) / "fonts" / "ttf"
+    FONT_FILES = ["DejaVuSans.ttf", "DejaVuSans-Bold.ttf", "DejaVuSans-Oblique.ttf",
+                  "DejaVuSans-BoldOblique.ttf", "DejaVuSansMono.ttf"]
+except ImportError:
+    # PDF authoring only needs fonts; plotting dependencies are optional here.
+    win_fonts = Path(os.environ.get("WINDIR", "C:/Windows")) / "Fonts"
+    linux_fonts = Path("/usr/share/fonts/truetype/dejavu")
+    if (win_fonts / "arial.ttf").exists():
+        FONTS = win_fonts
+        FONT_FILES = ["arial.ttf", "arialbd.ttf", "ariali.ttf", "arialbi.ttf", "consola.ttf"]
+    elif (linux_fonts / "DejaVuSans.ttf").exists():
+        FONTS = linux_fonts
+        FONT_FILES = ["DejaVuSans.ttf", "DejaVuSans-Bold.ttf", "DejaVuSans-Oblique.ttf",
+                      "DejaVuSans-BoldOblique.ttf", "DejaVuSansMono.ttf"]
+    else:
+        raise RuntimeError("Install matplotlib or DejaVu/Arial fonts to render the walkthrough PDF.")
+for name, f in zip(["DV", "DV-B", "DV-I", "DV-BI", "DVM"], FONT_FILES):
     pdfmetrics.registerFont(TTFont(name, str(FONTS / f)))
 for b, i, n in [(0, 0, "DV"), (1, 0, "DV-B"), (0, 1, "DV-I"), (1, 1, "DV-BI")]:
     addMapping("DV", b, i, n)
 
 BLUE, INK, MUTED, LINE, SOFT, CODE = (colors.HexColor(c) for c in ["#2a78d6", "#0b0b0b", "#52514e", "#d9d8d4", "#f2f6fc", "#7a2e0e"])
 W = 7.0 * inch
-base = ParagraphStyle("base", fontName="DV", fontSize=9, leading=12.6, textColor=INK, spaceAfter=5)
+base = ParagraphStyle("base", fontName="DV", fontSize=9, leading=12.6, textColor=INK, spaceAfter=5,
+                      allowWidows=0, allowOrphans=0)
 ST = {
     "h1": ParagraphStyle("h1", base, fontName="DV-B", fontSize=19, leading=23, textColor=BLUE, spaceAfter=4),
     "h2": ParagraphStyle("h2", base, fontName="DV-B", fontSize=14, leading=18, spaceBefore=8, spaceAfter=6, textColor=INK, keepWithNext=1),
@@ -131,7 +148,7 @@ def build():
 
     def deco(c, d):
         c.saveState(); c.setFont("DV", 7.2); c.setFillColor(MUTED)
-        c.drawString(0.75 * inch, 0.45 * inch, "Walmart Capstone · Team 2 · Pipeline walkthrough (Steps 01–05 implemented)")
+        c.drawString(0.75 * inch, 0.45 * inch, "Walmart Capstone · Pipeline walkthrough (Steps 01-10; revised validation)")
         c.drawRightString(7.75 * inch, 0.45 * inch, f"Page {d.page}"); c.restoreState()
     SimpleDocTemplate(str(OUT), pagesize=letter, leftMargin=0.75 * inch, rightMargin=0.75 * inch, topMargin=0.6 * inch,
                       bottomMargin=0.7 * inch, title="Walmart Pipeline Walkthrough", author="Team 2").build(story, onFirstPage=deco, onLaterPages=deco)

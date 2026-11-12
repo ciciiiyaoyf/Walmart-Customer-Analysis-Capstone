@@ -65,7 +65,9 @@ def build_features(spine, t, key="assignment_id", cut="send_ts", inclusive=False
     pr = pr[(pr.return_ts <= pr[cut]) if inclusive else (pr.return_ts < pr[cut])]
     if len(pr):
         audit["purchase_refunds"] = (pr.return_ts - pr[cut]).max()
-    po = po.merge(pr[[key, "order_id", "refund_amount"]], on=[key, "order_id"], how="left")
+    # Multiple partial refunds must not multiply the original order or its items.
+    known_refunds = pr.groupby([key, "order_id"], as_index=False).refund_amount.sum()
+    po = po.merge(known_refunds, on=[key, "order_id"], how="left", validate="1:1")
     po["known_refund"] = po.refund_amount.fillna(0)
     po["ncm"] = po.net_revenue - po.cogs - po.shipping_cost - po.known_refund
     g_all = po.groupby(key)

@@ -101,11 +101,11 @@
   "cat__region_South",
   "cat__region_West",
   "cat__acquisition_channel_Affiliate",
-  "cat__acquisition_channel_Missing",
   "cat__acquisition_channel_Organic",
   "cat__acquisition_channel_Paid Search",
   "cat__acquisition_channel_Referral",
   "cat__acquisition_channel_Social",
+  "cat__acquisition_channel_None",
   "cat__customer_tier_Gold",
   "cat__customer_tier_Silver",
   "cat__customer_tier_Standard",
@@ -115,7 +115,7 @@
   "cat__preferred_category_Climbing",
   "cat__preferred_category_Footwear",
   "cat__preferred_category_Hydration",
-  "cat__preferred_category_Missing",
+  "cat__preferred_category_None",
   "cat__shipping_zone_Zone_1",
   "cat__shipping_zone_Zone_2",
   "cat__shipping_zone_Zone_3",
@@ -126,14 +126,14 @@
   "cat__top_category_viewed_30d_Climbing",
   "cat__top_category_viewed_30d_Footwear",
   "cat__top_category_viewed_30d_Hydration",
-  "cat__top_category_viewed_30d_Missing",
+  "cat__top_category_viewed_30d_None",
   "cat__top_purchase_category_90d_Accessories",
   "cat__top_purchase_category_90d_Apparel",
   "cat__top_purchase_category_90d_Camping",
   "cat__top_purchase_category_90d_Climbing",
   "cat__top_purchase_category_90d_Footwear",
   "cat__top_purchase_category_90d_Hydration",
-  "cat__top_purchase_category_90d_Missing"
+  "cat__top_purchase_category_90d_None"
  ],
  "train_campaigns_final": [
   "CP01",
@@ -159,5 +159,5 @@
    "CP07"
   ]
  },
- "f1_threshold_from_valid": 0.17214376721701502
+ "f1_threshold_from_valid": 0.1721437671600326
 }

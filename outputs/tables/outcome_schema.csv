@@ -17,4 +17,6 @@ aov_14d
 in_window_return_count
 post_window_return_count
 post_window_refund_amount
+in_window_refund_amount
+total_linked_refund_amount
 ncm_14d_all_returns

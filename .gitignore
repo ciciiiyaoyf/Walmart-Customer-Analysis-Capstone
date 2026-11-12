@@ -6,3 +6,11 @@ __pycache__/
 *.env
 .venv/
 .DS_Store
+
+
+# Local validation environment and caches
+.deps/
+.pytest_cache/
+__pycache__/
+*.pyc
+.validation-cache/

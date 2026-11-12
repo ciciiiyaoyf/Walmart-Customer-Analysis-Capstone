@@ -1,0 +1,11 @@
+{
+  "randomization": "ceil(5% * N) customer IDs sampled uniformly before allocation; seed 42",
+  "estimand": "mean 14-day NCM in ALL POLICY-arm customers minus mean in randomized CONTROL customers",
+  "policy_arm_includes_optimizer_NO_OFFER": true,
+  "invalid_comparison": "offered recipients versus population control (selection-biased)",
+  "analysis_function": "src.measurement.estimate_policy_itt",
+  "outcomes": "same prespecified NCM window and complete follow-up for all randomized customers",
+  "power": "139 controls meets the assignment minimum; adequate power is not established",
+  "measurement_population": 2776,
+  "control_count": 139
+}

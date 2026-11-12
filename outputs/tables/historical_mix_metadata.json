@@ -1,0 +1,19 @@
+{
+  "source": "historical business_rule commercial assignments",
+  "training_campaigns": [
+    "CP01",
+    "CP02",
+    "CP03",
+    "CP04",
+    "CP05",
+    "CP06",
+    "CP07"
+  ],
+  "commercial_offer_shares": {
+    "PCT_10": 0.5984439615896825,
+    "PCT_20": 0.13093152029158198,
+    "FREE_SHIP": 0.27062451811873556
+  },
+  "july_baseline_only": true,
+  "backtest_rule": "re-estimate these shares on each historical training fold only"
+}

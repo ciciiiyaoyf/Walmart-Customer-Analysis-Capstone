@@ -1,0 +1,6 @@
+{
+  "primary_return_rule": "in_window",
+  "label_as_of_ts": null,
+  "all_returns_scope": "complete supplied snapshot; retrospective sensitivity",
+  "maturity_caveat": "As-of filters prevent look-ahead but do not recover returns not yet observed."
+}

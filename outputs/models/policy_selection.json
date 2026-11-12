@@ -1,0 +1,24 @@
+{
+  "selected_method": "ORIGINAL_TLEARNER",
+  "selection_campaigns": [
+    "CP04",
+    "CP05",
+    "CP06"
+  ],
+  "test_campaign": "CP07",
+  "candidate_methods": [
+    "ORIGINAL_TLEARNER",
+    "SHRUNK_TLEARNER",
+    "ACTION_MEAN",
+    "POOLED_XGBOOST"
+  ],
+  "parameters": {
+    "n_estimators": 100,
+    "max_depth": 1,
+    "learning_rate": 0.03
+  },
+  "rule": "retain original unless paired customer-bootstrap lower bound >0 after 3-comparison Bonferroni adjustment",
+  "test_status": "retrospective held-out reanalysis; CP07 was inspected in the earlier audit",
+  "interval_scope": "customer bootstrap re-estimates campaign logging probabilities; conditional on fitted outcome/cost models and fixed allocations; not future campaign drift",
+  "logging_propensity_assumption": "unconditional randomized offers within campaign; empirical frequencies; uniform sensitivity also reported"
+}

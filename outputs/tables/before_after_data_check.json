@@ -1,0 +1,6 @@
+{
+  "reference_commit": "ea950d0e9011ff0e105f5d93758ab54944a7c75f",
+  "primary_ncm_unchanged": true,
+  "feature_differences": [],
+  "explanation": "Compare original and corrected fitting in the same runtime; saved snapshot differences may reflect runtime/numerical differences."
+}

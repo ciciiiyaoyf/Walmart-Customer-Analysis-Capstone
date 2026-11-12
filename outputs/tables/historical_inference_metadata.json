@@ -1,0 +1,9 @@
+{
+  "primary_point_estimate": "pooled difference in means (unchanged)",
+  "confidence_interval": "customer-cluster sandwich; t critical value with clusters-1 df",
+  "campaign_adjusted_columns": "within-campaign differences standardized to observed campaign distribution",
+  "exploration_rows": 7527,
+  "unique_exploration_customers": 5672,
+  "repeated_exploration_customers": 1585,
+  "scope": "conditional on observed campaigns; subgroup intervals exploratory and not multiplicity-adjusted"
+}
