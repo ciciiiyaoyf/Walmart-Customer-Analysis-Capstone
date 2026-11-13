@@ -1,0 +1,17 @@
+{
+  "original": 0.12903448374883927,
+  "selected": 0.15877993769334672,
+  "campaigns": [
+    "CP04",
+    "CP05",
+    "CP06"
+  ],
+  "rule": "maximum F1 on pooled out-of-time development predictions; lowest threshold wins ties",
+  "selected_config": {
+    "mode": "log_interactions",
+    "C": 0.01,
+    "calibration": "none"
+  },
+  "frozen_before_cp07": true,
+  "interpretation": "Per-model illustrative classification thresholds; not promotion allocation rules"
+}

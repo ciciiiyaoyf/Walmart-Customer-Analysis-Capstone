@@ -1,0 +1,18 @@
+{
+  "model": "HURDLE_XGB_HALF",
+  "threshold": 0.1519988477230072,
+  "rule": "maximize pooled out-of-time F1; lowest threshold wins ties",
+  "comparison": "purchase_probability >= threshold",
+  "selection_campaigns": [
+    "CP04",
+    "CP05",
+    "CP06"
+  ],
+  "training_rule": "each validation campaign is predicted using only earlier randomized exploration rows with mature outcomes",
+  "development_rows": 3237,
+  "development_buyers": 399,
+  "cp07_used_for_threshold_selection": false,
+  "same_threshold_for_every_action": true,
+  "purpose": "report purchase recall and precision; not a promotion-allocation threshold",
+  "uncertainty": "Model configuration was also selected on development data. Development diagnostics are selection-biased; CP07 is previously inspected retrospective evaluation, not a new confirmatory test."
+}

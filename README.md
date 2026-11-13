@@ -4,11 +4,13 @@ This project recommends `NO_OFFER`, `PCT_10`, `PCT_20`, or `FREE_SHIP` for each 
 
 **Read [the validation report](docs/VALIDATION_REPORT.md) for measured before/after results and limitations.** July totals in the submission and dashboard are model projections. An optimizer ranking first under the predictions it maximizes is not independent evidence of profitable targeting.
 
-**Measured outcome of the performance revision:** two-part XGBoost reduces CP07 NCM RMSE from **63.3694 to 62.7385** (1.00%) and MAE from **27.4111 to 26.4806** (3.39%). Logistic regression's average precision increases from **0.2323 to 0.2367**, with small improvements in log loss and Brier score; its paired uncertainty still includes no improvement. A simple constrained `RANDOM_FREE_SHIP` policy wins development validation and replaces personalized allocation. Averaging feasible random recipient sets, its retrospective CP07 DR gain is **$7.90 per customer** versus no offer, and **$3.93** versus the original feasible policy, with paired 95% interval **[-$2.12, $10.44]**. Policy superiority remains uncertain.
+**Measured outcome of the performance revision:** two-part XGBoost reduces CP07 NCM RMSE from **63.3694 to 62.7385** (1.00%) and MAE from **27.4111 to 26.4806** (3.39%). Logistic regression's average precision increases from **0.2323 to 0.2367**, while recall falls from **60.88% to 50.10%** at the models' respective development-selected thresholds. The average-precision interval includes no improvement; the recall decline is clear in this retrospective comparison. The selected model is not uniformly better. A simple constrained `RANDOM_FREE_SHIP` policy wins development validation and replaces personalized allocation. Averaging feasible random recipient sets, its retrospective CP07 DR gain is **$7.90 per customer** versus no offer, and **$3.93** versus the original feasible policy, with paired 95% interval **[-$2.12, $10.44]**. Policy superiority remains uncertain.
 
 The saved seed-42 allocation happens to produce a more favorable CP07 estimate: $12.74 versus no offer and a paired $8.77 improvement over the original, interval [$0.36, $18.33]. That result conditions on the chosen recipients. It must not be presented as a reliable gain across recipient randomizations or as observed July profit.
 
 The earlier performance revision changed the fitted models and selected allocation. The subsequent transaction-coverage correction labels 19 purchase/return/product predictors as `observed_*` and adds separate coverage diagnostics. It preserves all 43 model input values, their order, and the original decision windows; it adds no predictive accuracy gain. The XGBoost improvements above come from the prior model revision. [The validation report](docs/VALIDATION_REPORT.md) separates these improvements and their limits.
+
+The current metric extension adds average precision/recall reporting, per-offer profit bias and calibration, and separate purchase/margin diagnostics for the two-part model. These evaluate existing predictions; they are not an additional model-performance gain.
 
 The revised pipeline separates three questions:
 
@@ -57,8 +59,8 @@ The final `policy_submission.csv` is also copied to `outputs/final/`. Its column
 | 02 | `02_build_historical_features` | Build 43 pre-send predictors plus separate transaction-coverage and historical-reference diagnostics |
 | 03 | `03_construct_14_day_outcomes` | Construct purchases, NCM, promotion cost, and explicit refund-timing outcomes |
 | 04 | `04_business_analysis` | Descriptive KPIs and exploration-only effects with customer-clustered uncertainty |
-| 05 | `05_logistic_propensity_model` | Temporally selected logistic purchase model with transformed features/interactions |
-| 06 | `06_tlearner_xgboost` | Two-part XGBoost comparison and separate feasible-policy selection |
+| 05 | `05_logistic_propensity_model` | Logistic purchase model; average precision and recall using frozen development thresholds |
+| 06 | `06_tlearner_xgboost` | Two-part XGBoost, profit bias/calibration and component diagnostics, separate policy selection |
 | 07 | `07_score_july_population` | Rebuild features and coverage diagnostics at each July cutoff and score each action |
 | 08 | `08_estimate_promotion_cost` | Expected promotion cost per customer and action |
 | 09 | `09_milp_policy_optimization` | Reserve randomized controls and solve the constrained allocation |
@@ -79,6 +81,36 @@ A separate development search compares 21 feasible allocation rules, including m
 Logged assignment probabilities are not supplied. Evaluation estimates action frequencies separately within each campaign and therefore assumes unconditional randomized offers within campaign. A uniform 25%-per-action sensitivity is also reported. The customer-cluster bootstrap retains all sampled customers' campaign observations and re-estimates campaign action frequencies in each draw. Its intervals are conditional on the fitted outcome/cost models and fixed allocations; they do not include model-refitting uncertainty or future campaign drift.
 
 The original CP07 unconstrained policy-value diagnostic is historical context, not an evaluation of the final allocation: its offer rate exceeded 60%. Revised evaluation applies the complete constraints and compares feasible alternatives using randomized observed outcomes and uncertainty. CP07 was already examined in the original analysis and audit, so this retrospective re-analysis is not a new untouched confirmatory experiment. Prospective randomized evidence is still required.
+
+## Evaluation metrics
+
+The purchase-model headlines are **average precision** and **recall**. Average precision summarizes precision-recall ranking over thresholds. Recall is the fraction of actual purchasers classified positive at a particular threshold; it can reach 100% by predicting everyone positive. Report the frozen threshold, precision and predicted-positive share beside recall.
+
+For the original and selected logistic models, the same max-F1 rule chooses each model's threshold from its own out-of-time CP04-CP06 predictions. Thresholds are saved before CP07 evaluation and held fixed in paired bootstrap draws. `purchase_headline_metrics.csv` contains the comparison; `purchase_thresholds.json` records the thresholds and provenance. The canonical field is `average_precision`; legacy `pr_auc` is retained as an identical compatibility alias, not trapezoidal PR area. Log loss/Brier remain supporting probability-quality checks and selection safeguards, rather than headline metrics.
+
+| Purchase diagnostic on CP07 | Original refit | Selected logistic |
+|---|---|---|
+| Average precision | 0.232325 | 0.236708 |
+| Recall | 60.88% | 50.10% |
+| Precision | 20.20% | 21.49% |
+| Classified-positive share | 39.74% | 30.74% |
+| Frozen development threshold | 0.12903 | 0.15878 |
+
+Both models are evaluated on the same 3,800 CP07 assignments, including 501 purchasers. The selected model has slightly higher average precision and precision, but lower recall at their respective development-selected thresholds: it classifies fewer customers positive and misses more purchasers. The recall difference is **-10.78 percentage points**, with paired 95% interval **[-13.52, -8.28] percentage points** conditional on the fitted models and frozen thresholds. This is a tradeoff, not uniform model improvement; a different threshold would change recall and precision.
+
+The continuous expected-NCM forecast still uses RMSE, MAE and R². Additional files under `outputs/tables/` make its limitations visible:
+
+| Output | Interpretation |
+|---|---|
+| `profit_bias_by_offer.csv` | Signed mean prediction error (predicted minus observed), dollar errors, and bias intervals overall and by offer |
+| `profit_calibration_by_offer.csv` | Predicted versus observed average NCM in prediction bands; tied predictions stay together |
+| `hurdle_purchase_metrics.csv` | Average precision and recall for the XGBoost purchase component, overall and by observed offer |
+| `purchaser_margin_metrics.csv` | Error in the blended conditional-margin forecast among actual purchasers, preserving negative margins |
+| `hurdle_component_predictions.csv` | CP07 purchase probabilities and conditional margins, with their product checked against the expected-NCM forecast |
+
+The two-part purchase threshold is also frozen from earlier-only CP04-CP06 predictions, using one threshold across offers. Its CP07 evaluation uses randomized exploration rows, whereas the logistic baseline uses all CP07 assignments. The XGBoost purchase component has AP **0.234062** and recall **42.96%** on 1,060 randomized CP07 assignments with 135 purchasers. These populations differ, so its AP/recall numbers and the logistic baseline results are not a direct head-to-head ranking. Conditional-margin errors use purchasers only and cannot be compared directly with full-population expected-NCM errors. Prediction bands and bias intervals are descriptive checks conditional on fitted models; they are not new selection evidence or guaranteed population biases.
+
+Run `python scripts/build_metric_diagnostics.py` to refresh the additional diagnostics after the required model and prediction outputs exist. The dashboard's Model performance tab shows the headline purchase metrics, supporting thresholds and precision, offer-level profit bias/calibration, and component errors. The Historical evaluation tab retains **incremental NCM per customer with uncertainty under the full constrained policy** as the primary business evaluation. More metrics do not establish profitable targeting or repair July's missing transaction coverage.
 
 ## Timing and financial assumptions
 

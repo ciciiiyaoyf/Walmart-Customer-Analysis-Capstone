@@ -9,6 +9,6 @@
     "CP05",
     "CP06"
   ],
-  "selection_rule": "maximize mean out-of-time PR-AUC with log_loss <= original + .001 and Brier <= original + .0005; ROC-AUC tie-break. Select nested temporal sigmoid only if both log-loss and Brier improve.",
+  "selection_rule": "maximize mean out-of-time average precision with log_loss <= original + .001 and Brier <= original + .0005; ROC-AUC tie-break. Select nested temporal sigmoid only if both log-loss and Brier improve.",
   "cp07_status": "Previously inspected; retrospective confirmation only"
 }

@@ -46,7 +46,12 @@ selected_policy = selection.get("selected_policy", selection.get("selected_metho
 forecast_model = selection.get("forecast_model", "see saved model comparison")
 logistic_comparison = table("logistic_cp07_comparison.csv", optional=True)
 logistic_intervals = table("logistic_cp07_paired_bootstrap.csv", optional=True)
+purchase_headline = table("purchase_headline_metrics.csv", optional=True)
 profit_comparison = table("model_comparison_cp07.csv", optional=True)
+profit_bias = table("profit_bias_by_offer.csv", optional=True)
+profit_calibration = table("profit_calibration_by_offer.csv", optional=True)
+hurdle_purchase = table("hurdle_purchase_metrics.csv", optional=True)
+purchaser_margin = table("purchaser_margin_metrics.csv", optional=True)
 milp = table("milp_policy_detailed.csv", optional=True)
 july_coverage = table("july_transaction_coverage.csv", optional=True)
 july_reference = table("july_organic_reference_window.csv", optional=True)
@@ -253,27 +258,45 @@ with tab4:
 
 with tab_models:
     st.info("The model comparisons below measure the earlier model revision. The subsequent purchase-history "
-            "coverage correction preserves the model input values and adds no accuracy gain.")
+            "coverage correction preserves the model input values and adds no accuracy gain. The additional "
+            "metrics diagnose those same predictions; adding a metric is not a model improvement.")
     st.subheader("Logistic regression: purchase probabilities")
     st.caption("Both the original refit and the selected model train through CP06 and predict CP07. "
-               "Average precision measures ranking among purchasers; log loss and Brier score measure probability accuracy. "
+               "Average precision summarizes the precision-recall ranking. Recall is the fraction of actual "
+               "purchasers classified positive at a frozen development-selected threshold. "
                "CP07 is a retrospective audit, and the models were selected on CP04–06.")
-    if logistic_comparison.empty:
-        st.info("Rebuild notebook 05 to display the model comparison.")
+    if purchase_headline.empty:
+        st.info("Rebuild notebook 05 to display average precision and development-threshold recall.")
     else:
-        fair = logistic_comparison[logistic_comparison.model.eq("original_fair_refit")]
-        chosen = logistic_comparison[logistic_comparison.model.eq("selected")]
+        fair = purchase_headline[purchase_headline.model.eq("original_fair_refit")]
+        chosen = purchase_headline[purchase_headline.model.eq("selected")]
         if not fair.empty and not chosen.empty:
-            cols = st.columns(3)
-            for column, key, label, direction in zip(cols, ["pr_auc", "log_loss", "brier"],
-                                                    ["Average precision", "Log loss", "Brier score"],
-                                                    ["normal", "inverse", "inverse"]):
-                column.metric(label, f"{chosen.iloc[0][key]:.5f}", f"{chosen.iloc[0][key]-fair.iloc[0][key]:+.5f} versus original refit", delta_color=direction)
-        st.dataframe(logistic_comparison, width="stretch", hide_index=True)
+            cols = st.columns(2)
+            for column, key, label in zip(cols, ["average_precision", "recall"], ["Average precision", "Recall"]):
+                column.metric(label, f"{chosen.iloc[0][key]:.5f}",
+                              f"{chosen.iloc[0][key]-fair.iloc[0][key]:+.5f} versus original refit")
+        headline_columns = ["model", "n", "positives", "average_precision", "recall", "precision",
+                            "threshold", "predicted_positive_share", "tp", "fp", "fn", "tn"]
+        st.dataframe(purchase_headline[[c for c in headline_columns if c in purchase_headline]],
+                     width="stretch", hide_index=True)
+        st.caption("Each model's threshold maximizes F1 on its own out-of-time CP04–06 predictions, before CP07 "
+                   "evaluation. Recall must be read with precision and the classified-positive share: predicting "
+                   "everyone as a purchaser would produce 100% recall. These classifications do not choose promotion recipients.")
+    if not logistic_intervals.empty:
+        headline_intervals = logistic_intervals[logistic_intervals.metric.isin(["average_precision", "recall"])]
+        if not headline_intervals.empty:
+            st.caption("Paired differences are selected minus original; higher is better for both headline metrics. "
+                       "Bootstrap draws keep the development thresholds fixed. An interval spanning zero does not "
+                       "establish a clear improvement.")
+            st.dataframe(headline_intervals, width="stretch", hide_index=True)
+    with st.expander("Supporting purchase-probability diagnostics"):
+        st.write("Log loss and Brier score remain probability-quality safeguards during model selection. "
+                 "They do not replace the headline average precision and recall metrics.")
+        if not logistic_comparison.empty:
+            st.dataframe(logistic_comparison, width="stretch", hide_index=True)
         if not logistic_intervals.empty:
-            st.caption("Paired differences below are selected minus original. Higher is better for AUC/average precision; lower is better for losses. "
-                       "Intervals spanning zero do not establish a statistically clear improvement.")
-            st.dataframe(logistic_intervals, width="stretch", hide_index=True)
+            st.dataframe(logistic_intervals[~logistic_intervals.metric.isin(["average_precision", "recall", "pr_auc"])],
+                         width="stretch", hide_index=True)
     st.subheader("XGBoost: expected net contribution")
     st.caption("The selected two-part model combines purchase probability with expected signed profit among purchasers. "
                "The margin prediction is partially pooled toward the treatment's purchaser mean to reduce noise. "
@@ -290,6 +313,66 @@ with tab_models:
                 column.metric(label, f"{chosen.iloc[0][key]:.4f}", f"{chosen.iloc[0][key]-original.iloc[0][key]:+.4f} versus original", delta_color=direction)
         st.dataframe(profit_comparison, width="stretch", hide_index=True)
         st.caption("A low R² still signals limited ability to explain individual profit variation, even when prediction errors improve.")
+
+    st.subheader("Profit bias and calibration by offer")
+    st.caption("Mean prediction bias is predicted minus observed NCM. Positive values mean overprediction; "
+               "negative values mean underprediction. An overall average can hide opposite errors across offers.")
+    if profit_bias.empty:
+        st.info("Run the metric diagnostics to display profit bias and calibration.")
+    else:
+        chart = profit_bias[profit_bias.scope.isin(ACTIONS)].pivot(index="scope", columns="model", values="mean_prediction_bias")
+        st.bar_chart(chart.reindex(ACTIONS), y_label="Mean prediction bias ($ per customer)")
+        st.dataframe(profit_bias, width="stretch", hide_index=True)
+        st.caption("Bias intervals are customer-bootstrap intervals conditional on fitted models. Offer groups and "
+                   "prediction bands can be small; check sample counts before interpreting differences.")
+    if not profit_calibration.empty:
+        scope = st.selectbox("Profit calibration group", ["pooled"] + ACTIONS)
+        bands = profit_calibration[profit_calibration.scope.eq(scope)]
+        fig, ax = plt.subplots(figsize=(7, 4))
+        for name, part in bands.groupby("model", sort=False):
+            part = part.sort_values("pred_mean")
+            ax.plot(part.pred_mean, part.obs_mean, marker="o", label=name)
+        limits = bands[["pred_mean", "obs_mean"]].to_numpy(float)
+        if limits.size and np.isfinite(limits).any():
+            low, high = np.nanmin(limits), np.nanmax(limits)
+            if low == high:
+                low, high = low-1, high+1
+            ax.plot([low, high], [low, high], "--", color="#777777", label="predicted = observed")
+        ax.set_xlabel("Mean predicted NCM ($)")
+        ax.set_ylabel("Mean observed NCM ($)")
+        ax.spines[["top", "right"]].set_visible(False)
+        ax.legend(frameon=False)
+        fig.tight_layout()
+        st.pyplot(fig)
+        plt.close(fig)
+        st.dataframe(bands, width="stretch", hide_index=True)
+        st.caption("Bands group similar predictions within each model and offer; tied predictions stay together. "
+                   "These are retrospective diagnostics, not a calibration fit or a new model-selection step.")
+
+    st.subheader("Two-part XGBoost: purchase and purchaser margin")
+    st.caption("The purchase component is evaluated on randomized CP07 customers under their observed offers. "
+               "The margin component is evaluated only among actual purchasers, using its blended conditional "
+               "margin forecast before multiplication by purchase probability.")
+    if hurdle_purchase.empty:
+        st.info("Run the metric diagnostics to display the separate two-part model checks.")
+    else:
+        pooled_purchase = hurdle_purchase[hurdle_purchase.scope.eq("pooled")]
+        if not pooled_purchase.empty:
+            row = pooled_purchase.iloc[0]
+            a, b = st.columns(2)
+            a.metric("XGBoost purchase average precision", f"{row.average_precision:.5f}")
+            b.metric("XGBoost purchase recall", f"{row.recall:.5f}")
+        columns = ["scope", "n", "buyers", "average_precision", "recall", "precision", "threshold",
+                   "predicted_positive_share", "tp", "fp", "fn", "tn"]
+        st.dataframe(hurdle_purchase[[c for c in columns if c in hurdle_purchase]], width="stretch", hide_index=True)
+        st.caption("One purchase threshold is frozen from earlier-only CP04–06 predictions of the selected "
+                   "two-part configuration and applied to every offer. Its randomized evaluation population "
+                   "differs from the logistic baseline population, so their headline scores are not a direct model ranking.")
+    if not purchaser_margin.empty:
+        st.dataframe(purchaser_margin, width="stretch", hide_index=True)
+        st.caption("Here n counts actual purchasers. Negative margins are retained. These conditional-margin "
+                   "errors cannot be compared directly with full-population expected-NCM errors. "
+                   "Use the Historical evaluation tab for complete-policy incremental profit and uncertainty.")
 
 with tab5:
     left, right = st.columns([1, 2])

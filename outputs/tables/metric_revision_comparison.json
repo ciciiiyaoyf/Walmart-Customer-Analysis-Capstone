@@ -1,0 +1,37 @@
+{
+  "comparison_commit": "2cec21b9b6200d1b4da1c0728da44cfffe63f784",
+  "output_checks": [
+    {
+      "file": "outputs/tables/logistic_test_predictions.csv",
+      "rows": 3800,
+      "changed_rows": 0,
+      "max_absolute_numeric_change": 0.0
+    },
+    {
+      "file": "outputs/tables/xgboost_test_predictions.csv",
+      "rows": 1060,
+      "changed_rows": 0,
+      "max_absolute_numeric_change": 0.0
+    },
+    {
+      "file": "outputs/tables/july_xgboost_ncm_scores.csv",
+      "rows": 2776,
+      "changed_rows": 0,
+      "max_absolute_numeric_change": 0.0
+    },
+    {
+      "file": "outputs/tables/july_action_ncm_scores.csv",
+      "rows": 2776,
+      "changed_rows": 0,
+      "max_absolute_numeric_change": 0.0
+    },
+    {
+      "file": "policy_submission.csv",
+      "rows": 2776,
+      "changed_rows": 0,
+      "max_absolute_numeric_change": 0.0
+    }
+  ],
+  "predictions_and_submission_unchanged": true,
+  "interpretation": "Additional diagnostics measure existing predictions. This comparison distinguishes a reporting change from a model-performance improvement."
+}

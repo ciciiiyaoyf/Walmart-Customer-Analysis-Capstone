@@ -11,7 +11,7 @@ from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler, SplineTransformer
-from sklearn.metrics import roc_auc_score, average_precision_score, log_loss, brier_score_loss
+from sklearn.metrics import roc_auc_score, average_precision_score, log_loss, brier_score_loss, precision_recall_curve
 from src.features import OBSERVED_FEATURE_RENAMES, feature_series
 
 RATE_COLUMNS = {"is_member", "marketing_consent", "prior_offer_redemption_rate",
@@ -22,7 +22,7 @@ _LEGACY_SPLINE_COLUMNS = ["customer_tenure_days", "days_since_last_order", "gros
                   "historical_open_rate", "avg_order_value_90d"]
 SPLINE_COLUMNS = [OBSERVED_FEATURE_RENAMES.get(c, c) for c in _LEGACY_SPLINE_COLUMNS]
 MODES = ("raw", "log", "log_interactions", "log_splines")
-PURCHASE_SELECTION_RULE = ("maximize mean out-of-time PR-AUC with log_loss <= original + .001 and "
+PURCHASE_SELECTION_RULE = ("maximize mean out-of-time average precision with log_loss <= original + .001 and "
                            "Brier <= original + .0005; ROC-AUC tie-break. Select nested temporal sigmoid "
                            "only if both log-loss and Brier improve.")
 
@@ -31,10 +31,60 @@ def purchase_candidates():
     return [{"mode":mode,"C":C,"calibration":"none"} for mode in MODES for C in [.001,.01,.1,1.]]
 
 
-def purchase_metrics(y,p):
-    return {"roc_auc":roc_auc_score(y,p),"pr_auc":average_precision_score(y,p),
-            "log_loss":log_loss(y,p),"brier":brier_score_loss(y,p),
-            "observed_mean":float(np.mean(y)),"predicted_mean":float(np.mean(p))}
+def _purchase_arrays(y, p):
+    y, p = np.asarray(y), np.asarray(p, dtype=float)
+    if y.ndim != 1 or p.ndim != 1 or not len(y) or len(y) != len(p):
+        raise ValueError("Purchase labels/probabilities must be nonempty matching one-dimensional arrays")
+    if not np.isin(y, [0, 1]).all() or not np.isfinite(p).all() or ((p < 0) | (p > 1)).any():
+        raise ValueError("Purchase labels must be binary and probabilities finite in [0, 1]")
+    return y.astype(int), p
+
+
+def choose_purchase_threshold(y, p):
+    """Max-F1 threshold on supplied DEVELOPMENT-only out-of-time predictions.
+
+    The caller must freeze this before evaluating held-out outcomes. Equal-F1
+    ties choose the lowest threshold, matching the pre-existing notebook rule.
+    This is an illustrative classification operating point, not an offer policy.
+    """
+    y, p = _purchase_arrays(y, p)
+    if not y.any():
+        raise ValueError("Threshold selection requires observed development purchasers")
+    precision, recall, thresholds = precision_recall_curve(y, p)
+    f1 = 2 * precision[:-1] * recall[:-1] / (precision[:-1] + recall[:-1] + 1e-12)
+    return float(thresholds[np.argmax(f1)])
+
+
+def purchase_metrics(y, p, threshold=None):
+    """Ranking/probability diagnostics and optional recall at a frozen threshold.
+
+    ``average_precision`` is canonical; ``pr_auc`` is an identical legacy alias,
+    not a trapezoidal PR-area estimate. No threshold is inferred from evaluation
+    labels. Undefined ranking/recall metrics for a no-purchaser sample are NaN.
+    """
+    y, p = _purchase_arrays(y, p)
+    positives = int(y.sum())
+    ap = float(average_precision_score(y, p)) if positives else np.nan
+    result = {"average_precision": ap, "pr_auc": ap,
+              "roc_auc": float(roc_auc_score(y, p)) if 0 < positives < len(y) else np.nan,
+              "log_loss": float(log_loss(y, p, labels=[0, 1])), "brier": float(brier_score_loss(y, p)),
+              "observed_mean": float(np.mean(y)), "predicted_mean": float(np.mean(p)),
+              "n": len(y), "positives": positives}
+    if threshold is not None:
+        threshold = float(threshold)
+        if not np.isfinite(threshold) or not 0 <= threshold <= 1:
+            raise ValueError("A frozen purchase threshold must be finite in [0, 1]")
+        predicted = p >= threshold
+        tp = int(((y == 1) & predicted).sum())
+        fp = int(((y == 0) & predicted).sum())
+        fn = positives - tp
+        tn = len(y) - positives - fp
+        result.update(threshold=threshold, precision=tp / (tp + fp) if tp + fp else 0.,
+                      recall=tp / positives if positives else np.nan,
+                      f1=2 * tp / (2 * tp + fp + fn) if 2 * tp + fp + fn else 0.,
+                      tn=tn, fp=fp, fn=fn, tp=tp,
+                      predicted_positive_share=float(predicted.mean()))
+    return result
 
 
 class PurchaseFeatures(BaseEstimator, TransformerMixin):
@@ -187,7 +237,7 @@ def select_purchase_config(history, num, cat, validation_campaigns=None, verbose
             p=fitted.predict_proba(va[num+cat])[:,1]
             results.append({"campaign":campaign,**config,**purchase_metrics(va.purchase_14d,p)})
         return results
-    keys=['mode','C','calibration']; score_cols=['roc_auc','pr_auc','log_loss','brier']
+    keys=['mode','C','calibration']; score_cols=['average_precision','roc_auc','pr_auc','log_loss','brier']
     for config in purchase_candidates():
         result=evaluate(config);rows.extend(result)
         if verbose:print(config,pd.DataFrame(result)[score_cols].mean().to_dict(),flush=True)
@@ -195,7 +245,7 @@ def select_purchase_config(history, num, cat, validation_campaigns=None, verbose
     summary=folds.groupby(keys,as_index=False)[score_cols].mean()
     original=summary.query("mode == 'raw' and C == .01").iloc[0]
     eligible=summary[(summary.log_loss <= original.log_loss+.001) & (summary.brier <= original.brier+.0005)]
-    winner=eligible.sort_values(['pr_auc','roc_auc','log_loss'],ascending=[False,False,True]).iloc[0]
+    winner=eligible.sort_values(['average_precision','roc_auc','log_loss'],ascending=[False,False,True]).iloc[0]
     config={'mode':winner['mode'],'C':float(winner.C),'calibration':'none'}
     # A calibrator needs at least two prior out-of-time prediction blocks.
     if all(sum(c < v for c in campaigns) >= 3 for v in validation_campaigns):
@@ -205,5 +255,5 @@ def select_purchase_config(history, num, cat, validation_campaigns=None, verbose
         if cm.log_loss < winner.log_loss and cm.brier <= winner.brier:
             config=calibrated
         folds=pd.concat([folds,cal],ignore_index=True)
-    summary=folds.groupby(keys,as_index=False)[score_cols].mean().sort_values('pr_auc',ascending=False)
+    summary=folds.groupby(keys,as_index=False)[score_cols].mean().sort_values('average_precision',ascending=False)
     return config,folds,summary

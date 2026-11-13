@@ -37,8 +37,12 @@ def main():
     new=compare.set_index('version').loc['corrected_predictive_champion']
     if new['model']!=champion:raise ValueError('Reference comparison has a stale predictive champion')
     xgb_ci=pd.read_csv(E/'profit/cp07_paired_loss.csv').set_index('loss')
-    logistic=pd.read_csv(E/'propensity/cp07_comparison.csv')
-    log_ci=pd.read_csv(E/'propensity/cp07_paired_bootstrap.csv').set_index('metric')
+    logistic=pd.read_csv(T/'purchase_headline_metrics.csv')
+    log_ci=pd.read_csv(T/'logistic_cp07_paired_bootstrap.csv').set_index('metric')
+    bias=pd.read_csv(T/'profit_bias_by_offer.csv')
+    hurdle_purchase=pd.read_csv(T/'hurdle_purchase_metrics.csv')
+    buyer_margin=pd.read_csv(T/'purchaser_margin_metrics.csv')
+    metric_revision=json.loads((T/'metric_revision_comparison.json').read_text())
     development=pd.read_csv(E/'policy/development_ranking.csv')
     policies=pd.read_csv(T/'heldout_policy_comparison.csv')
     policy=policies.set_index('policy').loc[selected]
@@ -60,7 +64,26 @@ def main():
                if len(cold) else 'No selected-policy subgroup estimate was saved; July transport remains unvalidated.')
     text=f'''# Correction and performance validation - November 13, 2026
 
-**The prior performance revision improved prediction modestly; the current coverage correction prevents unsupported inactivity claims.** Policy superiority remains uncertain. Earlier corrections fixed accounting, timing, constraints, and misleading evaluation while retaining the original model. The subsequent performance revision changed the fitted models and selected allocation independently on development campaigns. The current correction preserves those numeric predictor values and properly labels their observation scope.
+**The prior performance revision improved prediction modestly; coverage handling prevents unsupported inactivity claims; the current metrics revision adds purchase recall and detailed profit diagnostics.** Policy superiority remains uncertain. Earlier corrections fixed accounting, timing, constraints, and misleading evaluation while retaining the original model. The subsequent performance revision changed the fitted models and selected allocation independently on development campaigns. The coverage correction preserves those numeric predictor values and properly labels their observation scope. The metrics revision measures the existing models more completely; adding metrics is not a new improvement in their predictions.
+
+## Purchase headline metrics and expanded diagnostics
+
+**Average precision and recall** are the headline purchase-classification measures. Average precision summarizes the precision-recall ranking without a fixed threshold. Recall is the fraction of actual purchasers classified as purchasers at a frozen threshold. Each logistic model's threshold is chosen by maximum F1 using only CP04-CP06 out-of-time predictions, then serialized before CP07 evaluation. The hurdle purchase component follows the same development-only rule with its own global threshold. The resulting recall is an operating-point diagnostic, not an offer-allocation rule.
+
+Precision, flagged-customer share and the threshold accompany recall so that predicting everyone to purchase cannot masquerade as a useful gain. Log loss, Brier score and ROC-AUC remain supporting diagnostics; the existing model-selection safeguards are retained. `average_precision` is the canonical name; `pr_auc` remains an identical compatibility alias, not trapezoidal PR area.
+
+Numerical comparison with the preceding coverage commit `{metric_revision['comparison_commit'][:7]}` confirms predictions and the submission unchanged: **{metric_revision['predictions_and_submission_unchanged']}**. Full row-aligned differences are saved in `metric_revision_comparison.json`.
+
+Implemented outputs:
+
+- `purchase_headline_metrics.csv`, `purchase_thresholds.json`: logistic average precision/recall and reproducible thresholds.
+- `profit_bias_by_offer.csv`: signed dollar bias, RMSE/MAE/R2, and observed/predicted means overall and by actual offer, for original and selected models.
+- `profit_calibration_by_offer.csv`: predicted-versus-observed NCM in prediction bands, without arbitrarily splitting tied predictions.
+- `hurdle_purchase_metrics.csv`, `hurdle_threshold_selection.json`: purchase-component average precision/recall and development threshold provenance.
+- `purchaser_margin_metrics.csv`: conditional margin prediction error among actual purchasers, preserving negative margins.
+- `hurdle_component_predictions.csv`: assignment-level probability and conditional margin, whose product must match saved expected-NCM predictions.
+
+The existing held-out policy evaluation remains the business measure: incremental NCM per customer versus no offer and feasible alternatives, under the full constraints and with uncertainty. Purchase metrics do not apply to continuous NCM forecasts and do not replace policy evaluation. None of these diagnostics supplies missing July outcomes or certifies transaction coverage. Definitions follow [average precision](https://scikit-learn.org/stable/modules/generated/sklearn.metrics.average_precision_score.html), [recall](https://scikit-learn.org/stable/modules/generated/sklearn.metrics.recall_score.html), and [separate threshold tuning](https://scikit-learn.org/stable/modules/classification_threshold.html).
 
 ## Transaction coverage correction
 
@@ -81,7 +104,7 @@ This semantic correction adds **no measured model-performance gain** when predic
 ## Prior model-performance gains retained
 
 - Expected-NCM prediction: CP07 RMSE falls from **{old.rmse:.4f} to {new.rmse:.4f}** ({100*(old.rmse-new.rmse)/old.rmse:.2f}%), and MAE from **{old.mae:.4f} to {new.mae:.4f}** ({100*(old.mae-new.mae)/old.mae:.2f}%).
-- Logistic regression: small improvements in average precision and probability quality; paired uncertainty includes zero improvement.
+- Logistic regression: small improvements in average precision and probability quality; paired average-precision uncertainty includes zero improvement. Recall at the respective frozen development thresholds is lower for the selected model; precision rises and fewer customers are flagged.
 - Feasible allocation: **{selected}** wins CP04-CP06 development selection. Averaging feasible random recipient sets, CP07 DR incremental NCM is **${stochastic_gain.gain:.2f} per customer** versus no offer; the paired difference versus the original feasible policy is **${stochastic_change.gain:.2f}**, 95% interval **[{money(stochastic_change.ci_low)}, {money(stochastic_change.ci_high)}]**. The interval includes zero.
 
 CP07 was already inspected in earlier project work. These are **retrospective comparisons**, not a new untouched confirmatory test. They are not realized July gains. The policy result favors a simple offer rule; it does not demonstrate a benefit from personalization.
@@ -110,9 +133,29 @@ RMSE is appropriate for expected dollar NCM and squared-error fitting. MSE adds 
 
 Rolling CP04-CP06 development compares transformations, compact interactions, regularization, and nested temporal probability calibration. Selection maximizes mean average precision subject to log-loss/Brier safeguards. The winner uses signed-log transforms and compact interactions, C = 0.01, and no additional calibration. Raw and improved models use the same training/test populations and current runtime.
 
-{table(logistic[['model','roc_auc','pr_auc','log_loss','brier','observed_mean','predicted_mean']])}
+{table(logistic[['model','average_precision','recall','precision','threshold','predicted_positive_share']])}
 
-The `pr_auc` column is **average precision**, not trapezoidal PR area. Its paired CP07 change is **{log_ci.loc['pr_auc','difference_selected_minus_original']:.6f}**, with 95% interval **[{log_ci.loc['pr_auc','ci_low']:.6f}, {log_ci.loc['pr_auc','ci_high']:.6f}]**. All four paired metric intervals include zero improvement. Retaining the development winner is reasonable, but a major reliable predictive advance is not established. Purchase propensity describes buying under the historical offer mixture; it is not untreated purchase probability or causal uplift.
+The original model catches **{100*logistic.set_index('model').loc['original_fair_refit','recall']:.2f}%** of actual purchasers at its development threshold, versus **{100*logistic.set_index('model').loc['selected','recall']:.2f}%** for the selected model at its own threshold. The selected model is not uniformly better: it uses a stricter operating point, flags fewer customers and has higher precision. This diagnostic does not retune either threshold using CP07 outcomes.
+
+The selected model's average-precision difference versus the original is **{log_ci.loc['average_precision','difference_selected_minus_original']:.6f}**, with paired 95% interval **[{log_ci.loc['average_precision','ci_low']:.6f}, {log_ci.loc['average_precision','ci_high']:.6f}]**. Its recall difference at the respective frozen development thresholds is **{log_ci.loc['recall','difference_selected_minus_original']:.6f}**, interval **[{log_ci.loc['recall','ci_low']:.6f}, {log_ci.loc['recall','ci_high']:.6f}]**. The recall comparison includes different operating thresholds and must be read together with precision and flagged share. Thresholds are held fixed in the customer bootstrap; intervals omit threshold/model selection, refitting and future-campaign uncertainty. Purchase propensity describes buying under the historical offer mixture; it is not untreated purchase probability or causal uplift.
+
+## Profit bias, calibration and two-part diagnostics
+
+Signed mean prediction bias is **predicted minus observed** NCM: positive values indicate overprediction in this sample, negative values underprediction. Opposite errors across offers can cancel in the pooled average. These are factual observed-action diagnostics; they do not verify individual treatment effects or counterfactual profits.
+
+{table(bias[['model','scope','n','obs_mean','pred_mean','mean_prediction_bias','bias_ci_low','bias_ci_high']])}
+
+Calibration-band details are saved in `profit_calibration_by_offer.csv` and displayed in the dashboard. Means and their bias intervals are estimated within each actual offer and prediction band. Small groups and extreme signed profits make these diagnostics noisy. Customer bootstrap intervals condition on the fitted models and bins; they do not establish future calibration or adjust for many comparisons. No CP07-derived recalibration is applied.
+
+The hurdle purchase-component classification results use only the **1,060 randomized CP07 assignments** and each customer's actual offer. Logistic evaluation above uses all 3,800 CP07 assignments under their historical offer mixture. Their average precision and recall values are therefore **not a like-for-like contest between algorithms**.
+
+{table(hurdle_purchase[['scope','n','buyers','average_precision','recall','precision','threshold','predicted_positive_share']])}
+
+Conditional purchaser-margin performance is evaluated only among actual purchasers, using the model's blended margin forecast before multiplying by purchase probability. It is not the expected-NCM forecast restricted to purchasers. Errors on this selected subgroup answer a different question from whole-population profit error:
+
+{table(buyer_margin[['scope','n','rmse','mae','r2','obs_mean','pred_mean','mean_prediction_bias']])}
+
+Negative margins remain valid. MAPE is unsuitable for the many zero-NCM outcomes; changing metrics cannot resolve the underlying noise or prove profitable targeting.
 
 ## Select the complete feasible policy separately
 
@@ -167,11 +210,13 @@ python -m pytest -q
 python run_pipeline.py --from-clean
 python scripts/compare_reference.py
 python scripts/validate_coverage_revision.py
+python scripts/build_metric_diagnostics.py
+python scripts/validate_metric_revision.py
 python scripts/build_validation_report.py
 python docs/build_walkthrough_pdf.py
 ```
 
-{test_evidence} Focused checks cover signed-margin factorization, exploration-only fitting, serialization, assignment alignment, feature timing, observation-scope parity, explicit coverage contracts/unknown zeros, refund accounting/maturity, DR/bootstrap logic, feasible allocation, and ITT analysis. Recorded execution scope: {environment['execution']} The commands above reproduce the checks; generating this report itself does not rerun them. The walkthrough PDF explains prediction and allocation separately.
+{test_evidence} Focused checks cover signed-margin factorization, exploration-only fitting, serialization, assignment alignment, feature timing, observation-scope parity, explicit coverage contracts/unknown zeros, frozen purchase thresholds, signed bias/calibration, conditional-margin decomposition, refund accounting/maturity, DR/bootstrap logic, feasible allocation, and ITT analysis. Recorded execution scope: {environment['execution']} The commands above reproduce the checks; generating this report itself does not rerun them. The walkthrough PDF explains prediction and allocation separately.
 
 Before launch, predefine the financial horizon, randomization, power, monitoring, and analysis. Compare **all** customers randomized to the POLICY arm, including those given NO_OFFER, with the randomized control arm using `src.measurement.estimate_policy_itt`. A 5% minimum control share satisfies the project constraint but does not guarantee adequate power.
 '''

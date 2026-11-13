@@ -4,9 +4,9 @@ Revised November 13, 2026. This document explains the ten implemented steps and 
 
 The business objective is to recommend one of NO_OFFER, PCT_10, PCT_20, or FREE_SHIP for every July customer, maximizing expected incremental 14-day net contribution margin (NCM) under budget and customer-experience constraints.
 
-**Measured performance revision:** the two-part XGBoost model reduces CP07 RMSE from $63.3694 to $62.7385 and MAE from $27.4111 to $26.4806. Logistic average precision rises from 0.2323 to 0.2367, with small probability-quality gains but uncertainty that includes zero improvement. Separately, RANDOM_FREE_SHIP wins development policy selection. Averaging feasible random recipient sets, CP07 DR gain is $7.90 per customer versus no offer and $3.93 versus the original policy, with paired 95% interval [-$2.12, $10.44]. Policy superiority remains uncertain. The saved seed-42 allocation's more favorable $12.74 estimate depends partly on recipient luck. Full comparisons are in VALIDATION_REPORT.md.
+**Measured performance revision:** the two-part XGBoost model reduces CP07 RMSE from $63.3694 to $62.7385 and MAE from $27.4111 to $26.4806. Logistic average precision rises from 0.2323 to 0.2367, with uncertainty that includes zero improvement, while recall falls from 60.88% to 50.10% at the respective development-selected thresholds. The selected logistic model is not uniformly better. Separately, RANDOM_FREE_SHIP wins development policy selection. Averaging feasible random recipient sets, CP07 DR gain is $7.90 per customer versus no offer and $3.93 versus the original policy, with paired 95% interval [-$2.12, $10.44]. Policy superiority remains uncertain. The saved seed-42 allocation's more favorable $12.74 estimate depends partly on recipient luck. Full comparisons are in VALIDATION_REPORT.md.
 
-The first correction pass repaired evaluation and accounting while retaining the original model. The later performance revision changed both models and allocation using development data, then measured their retrospective CP07 behavior. The current transaction-coverage correction adds explicit observed-history names and separate coverage diagnostics while preserving all 43 model predictor values and their order. It does not add an accuracy gain; the reported 1.00% RMSE and 3.39% MAE improvements belong to the preceding model revision.
+The first correction pass repaired evaluation and accounting while retaining the original model. The later performance revision changed both models and allocation using development data, then measured their retrospective CP07 behavior. The transaction-coverage correction adds explicit observed-history names and separate coverage diagnostics while preserving all 43 model predictor values and their order. The current metric extension adds average precision/recall reporting, offer-level profit bias/calibration, and separate purchase/margin checks. Neither diagnostic extension adds an accuracy gain; the reported 1.00% RMSE and 3.39% MAE improvements belong to the preceding model revision.
 
 There are three distinct outputs:
 
@@ -108,11 +108,25 @@ A positive point estimate is not a demonstrated positive effect. In the original
 
 The project requires a purchase-propensity baseline; it does not mandate logistic regression as the algorithm. Logistic regression is the implemented baseline. Preprocessing is fitted inside each training fold. Rolling CP04-CP06 development compares raw and transformed predictors, compact interactions, regularization, and nested temporal sigmoid calibration. Selection maximizes mean average precision with log-loss and Brier safeguards. Calibration is retained only if it improves both probability scores on development data. The frozen winner is refitted on CP01-CP06 and evaluated on CP07, then refitted for deployment.
 
-The selected model uses signed-log transformations and compact interactions with C = 0.01 and no additional calibration. CP07 ROC-AUC changes from 0.658743 to 0.658879, average precision from 0.232325 to 0.236708, log loss from 0.371117 to 0.370689, and Brier score from 0.109704 to 0.109558. These gains are small. The paired 95% interval for average-precision change is [-0.00445, 0.01321], so a reliable large improvement is not established.
+The selected model uses signed-log transformations and compact interactions with C = 0.01 and no additional calibration. The headline purchase metrics are average precision and recall. CP07 average precision changes from 0.232325 to 0.236708. Its paired 95% change interval is [-0.00445, 0.01321], so a reliable large improvement is not established. The headline comparison and supporting classification counts are saved in purchase_headline_metrics.csv.
+
+| Purchase diagnostic on CP07 | Original refit | Selected logistic |
+|---|---|---|
+| Average precision | 0.232325 | 0.236708 |
+| Recall | 60.88% | 50.10% |
+| Precision | 20.20% | 21.49% |
+| Classified-positive share | 39.74% | 30.74% |
+| Frozen development threshold | 0.12903 | 0.15878 |
+
+Both models are evaluated on the same 3,800 CP07 assignments, including 501 purchasers. The selected model has slightly higher average precision and precision, but lower recall at their respective development-selected thresholds: it classifies fewer customers positive and misses more purchasers. The recall difference is **-10.78 percentage points**, with paired 95% interval **[-13.52, -8.28] percentage points** conditional on the fitted models and frozen thresholds. This is a tradeoff, not uniform model improvement; a different threshold would change recall and precision.
+
+Average precision summarizes precision-recall ranking over thresholds. Recall is the fraction of actual purchasers classified positive at a frozen threshold. For each original/selected model, the same max-F1 rule selects its threshold from that model's out-of-time CP04-CP06 predictions, before CP07 evaluation. The thresholds are serialized in purchase_thresholds.json and remain fixed during paired bootstrap draws. Recall is reported with precision and the classified-positive share, because predicting everyone positive would trivially achieve 100% recall. These binary classifications are diagnostic; they do not determine promotion recipients.
+
+Log loss, Brier score and ROC-AUC remain supporting diagnostics. Log-loss/Brier safeguards still protect probability quality during development selection. The canonical output name is average_precision; pr_auc remains an identical compatibility alias and does not mean trapezoidal PR area.
 
 The score predicts purchasing under the historical mixture of promotional actions. It does not estimate the probability of purchase under NO_OFFER, and it does not measure how much a promotion changes behavior.
 
-ROC-AUC, precision-recall, log loss, Brier score, calibration, and lift describe this predictive baseline. They are not substitutes for profit-based evaluation of the promotion policy.
+Average precision and recall describe purchase prediction; supporting probability scores, calibration and lift give additional context. They are not substitutes for profit-based evaluation of the promotion policy. CP07 was inspected before these additions and remains a retrospective audit, not a new untouched test.
 
 ## 7. Step 06: expected NCM and model comparison
 
@@ -123,6 +137,19 @@ Squared-error fitting is appropriate for the conditional mean needed by an expec
 The fair same-runtime original refit has CP07 RMSE $63.3694, MAE $27.4111, and R² 0.0059. The new selected model achieves $62.7385, $26.4806, and 0.0256 respectively: modest improvements, with realized individual profit still difficult to predict.
 
 Matching fitted models' average effects to averages from the same training data is an in-sample plausibility check. It does not validate individualized effects.
+
+### Profit and two-part diagnostics
+
+The metric extension writes additional CP07 diagnostics without changing the fitted model or selecting a new winner. The primary regression target remains signed dollar NCM; classification metrics apply only to purchase probability.
+
+- profit_bias_by_offer.csv reports mean predicted minus observed NCM, RMSE, MAE, R² and bias intervals overall and by observed offer. Positive bias means overprediction and negative bias means underprediction. Overall agreement can conceal opposing errors across offers.
+- profit_calibration_by_offer.csv groups similar predictions within each model and offer, keeping tied predictions together. Comparing mean predicted and observed NCM tests whether forecast dollar levels agree with realized group averages. Sample counts and uncertainty matter; these bands are descriptive and are not used to recalibrate or select the model.
+- hurdle_purchase_metrics.csv reports average precision and recall for the two-part XGBoost purchase component, with precision, the threshold, classified-positive share and counts. One common threshold is frozen from pooled CP04-CP06 out-of-time predictions using the max-F1 rule; each fold fits earlier campaigns only. No CP07 labels choose it.
+- purchaser_margin_metrics.csv evaluates the blended conditional-margin forecast among actual purchasers before multiplying it by purchase probability. It reports dollar errors and signed mean bias, preserving negative margins. Its sample size is the number of purchasers, not all customers.
+
+The product of purchase probability and blended conditional margin is checked against the saved expected-NCM prediction. The component predictions and threshold provenance are saved alongside these tables. Run python scripts/build_metric_diagnostics.py after the prerequisite model outputs to refresh them.
+
+The XGBoost purchase component has AP 0.234062 and recall 42.96% on 1,060 randomized CP07 exploration assignments, including 135 purchasers. The logistic baseline uses all 3,800 CP07 assignments, including 501 purchasers, so their AP/recall scores are not a direct comparison on identical populations. Purchaser-only margin errors likewise cannot be compared directly with full-population expected-NCM errors. The dashboard displays the diagnostics while retaining constrained incremental NCM and its uncertainty as the primary business evaluation.
 
 ### Revised model selection
 

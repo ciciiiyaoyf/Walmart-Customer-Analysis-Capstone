@@ -1,0 +1,34 @@
+{
+  "evaluation_campaign": "CP07",
+  "evaluation_status": "retrospective; previously inspected",
+  "profit_prediction_reference": "saved original and selected models trained on randomized CP01-CP06",
+  "mean_prediction_bias_definition": "mean(predicted NCM - observed NCM); positive means overprediction",
+  "calibration": "five approximate equal-frequency prediction bands per model and offer; ties never split and duplicate edges can reduce bin count",
+  "bias_intervals": "95% customer-cluster bootstrap with 2000 draws, conditional on fixed fits and fixed prediction bands; no multiplicity, selection, retraining or future-campaign adjustment",
+  "component_definition": "expected NCM = purchase probability * signed blended conditional purchaser margin",
+  "margin_population": "actual purchasers only, compared with the conditional margin prediction (not expected NCM)",
+  "purchase_headline_metrics": [
+    "average_precision",
+    "recall"
+  ],
+  "recall_threshold": 0.1519988477230072,
+  "purchase_supporting_metrics": [
+    "precision",
+    "predicted_positive_share",
+    "roc_auc",
+    "log_loss",
+    "brier"
+  ],
+  "undefined_metrics": "AP and recall are missing when no buyers occur; precision is missing when no positives are predicted; R2 is missing for constant/empty targets",
+  "saved_factual_profit_predictions_match_components": true,
+  "policy_interpretation": "Factual prediction/component metrics do not establish causal uplift. Use the separately saved constrained-policy incremental NCM estimates and confidence intervals.",
+  "files": [
+    "profit_bias_by_offer.csv",
+    "profit_calibration_by_offer.csv",
+    "hurdle_purchase_metrics.csv",
+    "purchaser_margin_metrics.csv",
+    "hurdle_component_predictions.csv",
+    "hurdle_threshold_selection.json",
+    "hurdle_development_component_predictions.csv"
+  ]
+}

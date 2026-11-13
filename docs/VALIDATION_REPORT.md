@@ -1,6 +1,25 @@
 # Correction and performance validation - November 13, 2026
 
-**The prior performance revision improved prediction modestly; the current coverage correction prevents unsupported inactivity claims.** Policy superiority remains uncertain. Earlier corrections fixed accounting, timing, constraints, and misleading evaluation while retaining the original model. The subsequent performance revision changed the fitted models and selected allocation independently on development campaigns. The current correction preserves those numeric predictor values and properly labels their observation scope.
+**The prior performance revision improved prediction modestly; coverage handling prevents unsupported inactivity claims; the current metrics revision adds purchase recall and detailed profit diagnostics.** Policy superiority remains uncertain. Earlier corrections fixed accounting, timing, constraints, and misleading evaluation while retaining the original model. The subsequent performance revision changed the fitted models and selected allocation independently on development campaigns. The coverage correction preserves those numeric predictor values and properly labels their observation scope. The metrics revision measures the existing models more completely; adding metrics is not a new improvement in their predictions.
+
+## Purchase headline metrics and expanded diagnostics
+
+**Average precision and recall** are the headline purchase-classification measures. Average precision summarizes the precision-recall ranking without a fixed threshold. Recall is the fraction of actual purchasers classified as purchasers at a frozen threshold. Each logistic model's threshold is chosen by maximum F1 using only CP04-CP06 out-of-time predictions, then serialized before CP07 evaluation. The hurdle purchase component follows the same development-only rule with its own global threshold. The resulting recall is an operating-point diagnostic, not an offer-allocation rule.
+
+Precision, flagged-customer share and the threshold accompany recall so that predicting everyone to purchase cannot masquerade as a useful gain. Log loss, Brier score and ROC-AUC remain supporting diagnostics; the existing model-selection safeguards are retained. `average_precision` is the canonical name; `pr_auc` remains an identical compatibility alias, not trapezoidal PR area.
+
+Numerical comparison with the preceding coverage commit `2cec21b` confirms predictions and the submission unchanged: **True**. Full row-aligned differences are saved in `metric_revision_comparison.json`.
+
+Implemented outputs:
+
+- `purchase_headline_metrics.csv`, `purchase_thresholds.json`: logistic average precision/recall and reproducible thresholds.
+- `profit_bias_by_offer.csv`: signed dollar bias, RMSE/MAE/R2, and observed/predicted means overall and by actual offer, for original and selected models.
+- `profit_calibration_by_offer.csv`: predicted-versus-observed NCM in prediction bands, without arbitrarily splitting tied predictions.
+- `hurdle_purchase_metrics.csv`, `hurdle_threshold_selection.json`: purchase-component average precision/recall and development threshold provenance.
+- `purchaser_margin_metrics.csv`: conditional margin prediction error among actual purchasers, preserving negative margins.
+- `hurdle_component_predictions.csv`: assignment-level probability and conditional margin, whose product must match saved expected-NCM predictions.
+
+The existing held-out policy evaluation remains the business measure: incremental NCM per customer versus no offer and feasible alternatives, under the full constraints and with uncertainty. Purchase metrics do not apply to continuous NCM forecasts and do not replace policy evaluation. None of these diagnostics supplies missing July outcomes or certifies transaction coverage. Definitions follow [average precision](https://scikit-learn.org/stable/modules/generated/sklearn.metrics.average_precision_score.html), [recall](https://scikit-learn.org/stable/modules/generated/sklearn.metrics.recall_score.html), and [separate threshold tuning](https://scikit-learn.org/stable/modules/classification_threshold.html).
 
 ## Transaction coverage correction
 
@@ -27,7 +46,7 @@ This semantic correction adds **no measured model-performance gain** when predic
 ## Prior model-performance gains retained
 
 - Expected-NCM prediction: CP07 RMSE falls from **63.3694 to 62.7385** (1.00%), and MAE from **27.4111 to 26.4806** (3.39%).
-- Logistic regression: small improvements in average precision and probability quality; paired uncertainty includes zero improvement.
+- Logistic regression: small improvements in average precision and probability quality; paired average-precision uncertainty includes zero improvement. Recall at the respective frozen development thresholds is lower for the selected model; precision rises and fewer customers are flagged.
 - Feasible allocation: **RANDOM_FREE_SHIP** wins CP04-CP06 development selection. Averaging feasible random recipient sets, CP07 DR incremental NCM is **$7.90 per customer** versus no offer; the paired difference versus the original feasible policy is **$3.93**, 95% interval **[-$2.12, $10.44]**. The interval includes zero.
 
 CP07 was already inspected in earlier project work. These are **retrospective comparisons**, not a new untouched confirmatory test. They are not realized July gains. The policy result favors a simple offer rule; it does not demonstrate a benefit from personalization.
@@ -60,12 +79,55 @@ RMSE is appropriate for expected dollar NCM and squared-error fitting. MSE adds 
 
 Rolling CP04-CP06 development compares transformations, compact interactions, regularization, and nested temporal probability calibration. Selection maximizes mean average precision subject to log-loss/Brier safeguards. The winner uses signed-log transforms and compact interactions, C = 0.01, and no additional calibration. Raw and improved models use the same training/test populations and current runtime.
 
-| model | roc_auc | pr_auc | log_loss | brier | observed_mean | predicted_mean |
-| --- | --- | --- | --- | --- | --- | --- |
-| original | 0.6587 | 0.2323 | 0.3711 | 0.1097 | 0.1318 | 0.1289 |
-| selected | 0.6589 | 0.2367 | 0.3707 | 0.1096 | 0.1318 | 0.1306 |
+| model | average_precision | recall | precision | threshold | predicted_positive_share |
+| --- | --- | --- | --- | --- | --- |
+| original_fair_refit | 0.2323 | 0.6088 | 0.2020 | 0.1290 | 0.3974 |
+| selected | 0.2367 | 0.5010 | 0.2149 | 0.1588 | 0.3074 |
 
-The `pr_auc` column is **average precision**, not trapezoidal PR area. Its paired CP07 change is **0.004384**, with 95% interval **[-0.004445, 0.013209]**. All four paired metric intervals include zero improvement. Retaining the development winner is reasonable, but a major reliable predictive advance is not established. Purchase propensity describes buying under the historical offer mixture; it is not untreated purchase probability or causal uplift.
+The original model catches **60.88%** of actual purchasers at its development threshold, versus **50.10%** for the selected model at its own threshold. The selected model is not uniformly better: it uses a stricter operating point, flags fewer customers and has higher precision. This diagnostic does not retune either threshold using CP07 outcomes.
+
+The selected model's average-precision difference versus the original is **0.004384**, with paired 95% interval **[-0.004445, 0.013209]**. Its recall difference at the respective frozen development thresholds is **-0.107784**, interval **[-0.135243, -0.082807]**. The recall comparison includes different operating thresholds and must be read together with precision and flagged share. Thresholds are held fixed in the customer bootstrap; intervals omit threshold/model selection, refitting and future-campaign uncertainty. Purchase propensity describes buying under the historical offer mixture; it is not untreated purchase probability or causal uplift.
+
+## Profit bias, calibration and two-part diagnostics
+
+Signed mean prediction bias is **predicted minus observed** NCM: positive values indicate overprediction in this sample, negative values underprediction. Opposite errors across offers can cancel in the pooled average. These are factual observed-action diagnostics; they do not verify individual treatment effects or counterfactual profits.
+
+| model | scope | n | obs_mean | pred_mean | mean_prediction_bias | bias_ci_low | bias_ci_high |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| HURDLE_XGB_HALF | pooled | 1060 | 15.3148 | 15.9756 | 0.6608 | -3.1867 | 4.3962 |
+| HURDLE_XGB_HALF | NO_OFFER | 257 | 10.2449 | 18.2170 | 7.9721 | 2.4969 | 12.6264 |
+| HURDLE_XGB_HALF | PCT_10 | 294 | 16.1856 | 15.6729 | -0.5127 | -9.8746 | 6.5416 |
+| HURDLE_XGB_HALF | PCT_20 | 243 | 11.3396 | 11.0982 | -0.2414 | -4.9524 | 4.0894 |
+| HURDLE_XGB_HALF | FREE_SHIP | 266 | 22.8823 | 18.6002 | -4.2822 | -14.3930 | 4.4293 |
+| ORIGINAL_TLEARNER | pooled | 1060 | 15.3148 | 16.5737 | 1.2589 | -2.6246 | 5.0393 |
+| ORIGINAL_TLEARNER | NO_OFFER | 257 | 10.2449 | 17.8076 | 7.5627 | 2.0756 | 12.2334 |
+| ORIGINAL_TLEARNER | PCT_10 | 294 | 16.1856 | 14.7944 | -1.3911 | -10.9617 | 5.8341 |
+| ORIGINAL_TLEARNER | PCT_20 | 243 | 11.3396 | 9.6422 | -1.6974 | -6.5514 | 2.7534 |
+| ORIGINAL_TLEARNER | FREE_SHIP | 266 | 22.8823 | 23.6802 | 0.7978 | -9.4685 | 9.5394 |
+
+Calibration-band details are saved in `profit_calibration_by_offer.csv` and displayed in the dashboard. Means and their bias intervals are estimated within each actual offer and prediction band. Small groups and extreme signed profits make these diagnostics noisy. Customer bootstrap intervals condition on the fitted models and bins; they do not establish future calibration or adjust for many comparisons. No CP07-derived recalibration is applied.
+
+The hurdle purchase-component classification results use only the **1,060 randomized CP07 assignments** and each customer's actual offer. Logistic evaluation above uses all 3,800 CP07 assignments under their historical offer mixture. Their average precision and recall values are therefore **not a like-for-like contest between algorithms**.
+
+| scope | n | buyers | average_precision | recall | precision | threshold | predicted_positive_share |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| pooled | 1060 | 135 | 0.2341 | 0.4296 | 0.2222 | 0.1520 | 0.2462 |
+| NO_OFFER | 257 | 26 | 0.2237 | 0.5385 | 0.2121 | 0.1520 | 0.2568 |
+| PCT_10 | 294 | 37 | 0.2386 | 0.4054 | 0.2206 | 0.1520 | 0.2313 |
+| PCT_20 | 243 | 36 | 0.2791 | 0.3889 | 0.2414 | 0.1520 | 0.2387 |
+| FREE_SHIP | 266 | 36 | 0.2676 | 0.4167 | 0.2174 | 0.1520 | 0.2594 |
+
+Conditional purchaser-margin performance is evaluated only among actual purchasers, using the model's blended margin forecast before multiplying by purchase probability. It is not the expected-NCM forecast restricted to purchasers. Errors on this selected subgroup answer a different question from whole-population profit error:
+
+| scope | n | rmse | mae | r2 | obs_mean | pred_mean | mean_prediction_bias |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| pooled | 135 | 131.1006 | 85.8259 | 0.1000 | 120.2498 | 125.9236 | 5.6738 |
+| NO_OFFER | 26 | 91.1329 | 79.0555 | -0.2302 | 101.2669 | 140.6253 | 39.3583 |
+| PCT_10 | 37 | 166.8146 | 91.5532 | 0.0575 | 128.6097 | 131.2195 | 2.6098 |
+| PCT_20 | 36 | 65.0245 | 49.8181 | 0.0663 | 76.5422 | 90.8900 | 14.3478 |
+| FREE_SHIP | 36 | 160.0819 | 120.8369 | 0.0593 | 169.0750 | 144.8962 | -24.1788 |
+
+Negative margins remain valid. MAPE is unsuitable for the many zero-NCM outcomes; changing metrics cannot resolve the underlying noise or prove profitable targeting.
 
 ## Select the complete feasible policy separately
 
@@ -160,10 +222,12 @@ python -m pytest -q
 python run_pipeline.py --from-clean
 python scripts/compare_reference.py
 python scripts/validate_coverage_revision.py
+python scripts/build_metric_diagnostics.py
+python scripts/validate_metric_revision.py
 python scripts/build_validation_report.py
 python docs/build_walkthrough_pdf.py
 ```
 
-The recorded verification run passed **106 focused tests**. Focused checks cover signed-margin factorization, exploration-only fitting, serialization, assignment alignment, feature timing, observation-scope parity, explicit coverage contracts/unknown zeros, refund accounting/maturity, DR/bootstrap logic, feasible allocation, and ITT analysis. Recorded execution scope: Coverage revision executed notebooks 02-10 from the committed cleaned snapshot, rebuilt and reloaded model artifacts, ran all 106 tests, original-model comparison and exact predictor/output comparison against the prior performance revision. Raw CSV validation not rerun. The commands above reproduce the checks; generating this report itself does not rerun them. The walkthrough PDF explains prediction and allocation separately.
+The recorded verification run passed **130 focused tests**. Focused checks cover signed-margin factorization, exploration-only fitting, serialization, assignment alignment, feature timing, observation-scope parity, explicit coverage contracts/unknown zeros, frozen purchase thresholds, signed bias/calibration, conditional-margin decomposition, refund accounting/maturity, DR/bootstrap logic, feasible allocation, and ITT analysis. Recorded execution scope: Earlier coverage revision executed notebooks 02-10 from committed cleaned data. Metrics revision executed notebooks 05-10, rebuilt all model/policy artifacts and diagnostic tables, passed all 130 tests, and compared predictions and submission with the preceding coverage commit. Raw CSV validation not rerun. The commands above reproduce the checks; generating this report itself does not rerun them. The walkthrough PDF explains prediction and allocation separately.
 
 Before launch, predefine the financial horizon, randomization, power, monitoring, and analysis. Compare **all** customers randomized to the POLICY arm, including those given NO_OFFER, with the randomized control arm using `src.measurement.estimate_policy_itt`. A 5% minimum control share satisfies the project constraint but does not guarantee adequate power.
