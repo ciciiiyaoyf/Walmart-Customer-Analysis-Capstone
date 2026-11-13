@@ -4,7 +4,9 @@ Revised November 12, 2026. This document explains the ten implemented steps and 
 
 The business objective is to recommend one of NO_OFFER, PCT_10, PCT_20, or FREE_SHIP for every July customer, maximizing expected incremental 14-day net contribution margin (NCM) under budget and customer-experience constraints.
 
-**Measured correction results:** the development rule retained ORIGINAL_TLEARNER. Its same-runtime CP07 RMSE remained 63.3694. The feasible policy's retrospective DR gain is $3.97 per customer, with a 95% interval from -$2.23 to $9.68. The interval includes zero; the revision does not establish profitable personalization or improved NCM prediction. All 49 focused tests passed. The 45-day return sensitivity changed 994 of 2,776 actions, showing that the accounting assumption remains consequential. Full comparisons and scope are in VALIDATION_REPORT.md.
+**Measured performance revision:** the two-part XGBoost model reduces CP07 RMSE from $63.3694 to $62.7385 and MAE from $27.4111 to $26.4806. Logistic average precision rises from 0.2323 to 0.2367, with small probability-quality gains but uncertainty that includes zero improvement. Separately, RANDOM_FREE_SHIP wins development policy selection. Averaging feasible random recipient sets, CP07 DR gain is $7.90 per customer versus no offer and $3.93 versus the original policy, with paired 95% interval [-$2.12, $10.44]. Policy superiority remains uncertain. The saved seed-42 allocation's more favorable $12.74 estimate depends partly on recipient luck. Full comparisons are in VALIDATION_REPORT.md.
+
+The first correction pass repaired evaluation and accounting while retaining the original model. That mattered for trustworthy interpretation but did not improve prediction. This performance revision changes both models and allocation using development data, then measures their retrospective CP07 behavior.
 
 There are three distinct outputs:
 
@@ -78,7 +80,7 @@ Refunds are linked by order and separated into amounts arriving inside and after
 
 The corrected reconciliation keeps early, late, and total refunds distinct. It does not add late refunds to an already all-inclusive amount. Regression tests include an order with both early and late refunds.
 
-The original saved data contain approximately $15.4K of in-window refunds and $83.8K arriving later. That makes accounting sensitivity material. The end-to-end sensitivity compares 14-day and 45-day accrued-return targets on identical mature cohorts and re-evaluates policy allocations. This bounded 45-day target is distinct from every eventual linked refund.
+The original saved data contain approximately $15.4K of in-window refunds and $83.8K arriving later. That makes accounting sensitivity material. The sensitivity compares 14-day and 45-day accrued-return targets on identical mature cohorts while retaining the selected policy rule. The current random allocation changes zero actions, but its forecast increment changes from $124.30 to -$569.05. This sign reversal remains a limitation even though allocation is stable. The bounded 45-day target is distinct from every eventual linked refund.
 
 When later refunds are used for model training or validation, labels must be mature and observable at the relevant fitting/decision cutoff. Some supplied returns occur after the July cutoff. The 45-day July sensitivity excludes CP07 because its labels have not matured by that cutoff. Retrospective policy sensitivity is evaluated on CP06 with mature training labels; it is not a new untouched test. The validation report identifies the observed changes and remaining limitations.
 
@@ -98,7 +100,9 @@ A positive point estimate is not a demonstrated positive effect. In the original
 
 ## 6. Step 05: purchase propensity
 
-Logistic regression is the required purchase-propensity baseline. Preprocessing is fitted within the training pipeline. Historical campaigns are split chronologically: training on CP01-CP05, tuning on CP06, evaluating on CP07, followed by a deployment refit.
+Logistic regression is the required purchase-propensity model. Preprocessing is fitted inside each training fold. Rolling CP04-CP06 development compares raw and transformed predictors, compact interactions, regularization, and nested temporal sigmoid calibration. Selection maximizes mean average precision with log-loss and Brier safeguards. Calibration is retained only if it improves both probability scores on development data. The frozen winner is refitted on CP01-CP06 and evaluated on CP07, then refitted for deployment.
+
+The selected model uses signed-log transformations and compact interactions with C = 0.01 and no additional calibration. CP07 ROC-AUC changes from 0.658743 to 0.658879, average precision from 0.232325 to 0.236708, log loss from 0.371117 to 0.370689, and Brier score from 0.109704 to 0.109558. These gains are small. The paired 95% interval for average-precision change is [-0.00445, 0.01321], so a reliable large improvement is not established.
 
 The score predicts purchasing under the historical mixture of promotional actions. It does not estimate the probability of purchase under NO_OFFER, and it does not measure how much a promotion changes behavior.
 
@@ -110,15 +114,21 @@ The original T-learner fits one action-specific XGBoost model on exploration row
 
 Squared-error fitting is appropriate for the conditional mean needed by an expected-profit objective. RMSE, MAE, R², and action-level mean calibration remain useful diagnostics. MSE, RMSE, and R² rank predictions equivalently on the same sample. Fitting absolute error instead would target a conditional median, which need not represent expected profit in a zero-heavy outcome distribution.
 
-The original CP07 diagnostics were RMSE $63.38, MAE $27.41, and R² about 0.006. An action-mean baseline achieved RMSE $63.49 and MAE $27.16. These are the original benchmark values; the validation report provides rerun results under the recorded environment.
+The fair same-runtime original refit has CP07 RMSE $63.3694, MAE $27.4111, and R² 0.0059. The new selected model achieves $62.7385, $26.4806, and 0.0256 respectively: modest improvements, with realized individual profit still difficult to predict.
 
 Matching fitted models' average effects to averages from the same training data is an in-sample plausibility check. It does not validate individualized effects.
 
 ### Revised model selection
 
-The revised comparison considers the original T-learner, a shrunk T-learner, an action-mean model, and a pooled XGBoost alternative. Candidate-family selection uses rolling CP04-CP06 validation with nested temporal tuning: CP04 uses CP03 as its inner validation campaign, CP05 uses CP04, and CP06 uses CP05. Each fold refits on prior campaigns only after choosing hyperparameters. A replacement requires a positive customer-bootstrap lower bound for paired DR improvement over the original, adjusted for three candidate comparisons. Otherwise the original remains selected.
+Fourteen fixed predictive configurations cover the original T-learner, pooled XGBoost, a shared baseline with action offsets, and two-part purchase/margin models. Every CP04-CP06 fold fits earlier campaigns only. Minimum pooled factual RMSE selects HURDLE_XGB_HALF; no CP07 result chooses the candidate.
 
-CP07 evaluation follows the fixed family selection, using CP06 for inner hyperparameter tuning. However, CP07 has already been inspected in the original analysis and audit. New retrospective calculations are useful evidence, but must not be described as a fresh untouched confirmatory test.
+About 88% of exploration outcomes are zero because no purchase occurred. The selected estimator multiplies pooled XGBoost purchase probability by a conditional purchaser-margin forecast, blended equally with each training arm's mean purchaser margin. This shares information across arms and reduces noise from separate small action samples. Negative purchaser margins are preserved; future realized purchase is a training label, never an input at scoring time.
+
+Development RMSE falls from 62.9717 to 62.3674. On CP07, RMSE improves 1.00% and MAE 3.39%. A paired customer bootstrap gives old-minus-new MSE 79.57, 95% interval [17.45, 140.35], and MAE 0.931, interval [0.452, 1.423]. These intervals hold fits fixed and omit search/retraining and future-wave uncertainty. Three arm-specific RMSEs improve; NO_OFFER worsens slightly. The evidence supports a modest predictive gain, not uniform improvement everywhere.
+
+Allocation selection is separate: 21 feasible rules include model optimizers, shrunk segment estimates, and simple baselines. Maximum pooled CP04-CP06 DR value selects RANDOM_FREE_SHIP (3.8176 per customer versus -1.9076 for the original feasible policy). Uncertainty is reported rather than used as a requirement that every replacement prove a positive adjusted lower bound. Selected development performance is subject to search optimism.
+
+CP07 evaluation follows the frozen choices. CP07 has already been inspected in the original analysis and audit, so these calculations are retrospective evidence, not a fresh untouched confirmatory test.
 
 ### Evaluate the complete feasible policy
 
@@ -130,7 +140,7 @@ The source tables do not include logged assignment probabilities. Evaluation use
 
 The customer-cluster bootstrap retains each sampled customer's campaign records and re-estimates campaign action frequencies in every draw. Subgroup effects use the full campaign's logging population rather than estimating frequencies only inside the subgroup. Intervals are conditional on fitted outcome/cost models and fixed allocations; they do not include model-refitting uncertainty or future campaign drift. Outcome predictions are fitted without evaluated outcomes. None of these procedures eliminates distribution shift or proves that July's population is represented.
 
-The primary question is whether the complete policy improves NCM relative to feasible alternatives. Conversion or generic uplift ranking alone cannot answer the four-action, profit-and-constraints question.
+For the fixed seed-42 allocation, RANDOM_FREE_SHIP has CP07 DR incremental NCM of $12.74 per customer, compared with $3.97 for the original feasible policy. The paired difference is $8.77, 95% interval [$0.36, $18.33]. However, averaging all feasible random recipient sets with the same reserved controls lowers the estimate to $7.90, interval [$1.36, $15.35]. The averaged paired difference versus the original is $3.93, interval [-$2.12, $10.44]. The saved seed is favorable; superiority over the original remains uncertain once recipient randomization is averaged. This diagnostic does not change selection or establish future July gains. Conversion or generic uplift ranking alone cannot answer the four-action, profit-and-constraints question.
 
 ## 8. Step 07: July scoring and support
 
@@ -164,7 +174,7 @@ Reserve at least 5% of customers as random controls before optimization, using a
 | PCT_20 | At most 15% of all commercial-offer recipients |
 | Controls | At least ceil(5% × number of customers), all NO_OFFER |
 
-The objective sums estimated incremental NCM. Subtracting each customer's NO_OFFER value is valid because it is constant across alternative allocations for that customer.
+The model-optimizer candidate sums estimated incremental NCM. Subtracting each customer's NO_OFFER value is valid because it is constant across alternative allocations for that customer. Production follows the separately selected feasible policy: currently RANDOM_FREE_SHIP, with seeded random customer ordering, the same controls, and the same budget/offer constraints. The XGBoost predictive champion supplies forecasts without forcing the allocation to follow its noisy individualized ranking.
 
 A shared SciPy/HiGHS allocator replaces PuLP and the machine-specific CBC path. Tests cover binding budget, the PCT_20 denominator, reserved controls, deterministic behavior, and assignment uniqueness. The saved audit independently checks the produced allocation.
 
@@ -181,15 +191,13 @@ The projected baselines use the same customers, constraints, and reserved contro
 3. HISTORICAL_MIX: approximate the historical commercial mix as closely as feasible.
 4. RANDOM_FREE_SHIP: a simple feasible randomized FREE_SHIP policy to challenge claims that personalization adds value.
 
-The optimized policy's model-projected advantage is expected under the objective it maximizes. It must be labeled a projection. Historical outcome-based comparisons and their intervals appear separately in heldout_policy_comparison.csv and the validation report.
+The model optimizer's projected advantage is expected under the objective it maximizes. It is retained as a comparator, while the submission follows the development-selected policy. All July dollar values remain projections. Historical outcome-based comparisons and their intervals appear separately in heldout_policy_comparison.csv and the validation report.
 
 The dashboard separates July projections from held-out evaluation and shows uncertainty where available. An interval crossing zero is inconclusive evidence of improvement, not proof of no effect and not proof of profit.
 
-<!-- pagebreak -->
-
 ## 12. July measurement design
 
-The reserved holdout is randomized at the policy-arm level. The correct comparison is **all customers assigned to the policy arm**, including those the optimizer leaves on NO_OFFER, against the randomized NO_OFFER control arm.
+The reserved holdout is randomized at the policy-arm level. The correct comparison is **all customers assigned to the policy arm**, including those the policy assigns NO_OFFER, against the randomized NO_OFFER control arm.
 
 Comparing only offered customers against the random holdout would mix targeting differences with intervention effects. For effects among particular target customers or for specific offers, define those groups before randomization and use a suitable randomized design within them.
 

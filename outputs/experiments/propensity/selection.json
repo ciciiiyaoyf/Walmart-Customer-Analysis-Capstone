@@ -1,0 +1,14 @@
+{
+  "config": {
+    "mode": "log_interactions",
+    "C": 0.01,
+    "calibration": "none"
+  },
+  "development_campaigns": [
+    "CP04",
+    "CP05",
+    "CP06"
+  ],
+  "rule": "maximize mean out-of-time PR-AUC with log_loss <= original + .001 and Brier <= original + .0005; ROC-AUC tie-break. Select nested temporal sigmoid only if both log-loss and Brier improve.",
+  "test_status": "CP07 not used in this search; already inspected in previous audit so retrospective confirmation only"
+}

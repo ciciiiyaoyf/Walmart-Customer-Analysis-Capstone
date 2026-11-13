@@ -1,3 +1,3 @@
-scenario,target,training_rows,training_campaigns,label_as_of_ts,projected_incremental_ncm,projected_spend,n_NO_OFFER,n_PCT_10,n_PCT_20,n_FREE_SHIP,actions_changed_between_targets,interpretation
-PRIMARY_14D_MATURE_COHORT,ncm_14d,6467,"CP01,CP02,CP03,CP04,CP05,CP06",2025-06-20 10:00:00,6236.300043106079,811.7936351064019,1111,94,10,1561,994,"scenario projections under different targets, not evidence of causal improvement"
-ACCRUED_45D_MATURE_COHORT,ncm_accrued_45d,6467,"CP01,CP02,CP03,CP04,CP05,CP06",2025-06-20 10:00:00,4095.1507754325867,411.55137458789255,1111,36,0,1629,994,"scenario projections under different targets, not evidence of causal improvement"
+scenario,target,policy_rule,training_rows,training_campaigns,label_as_of_ts,projected_incremental_ncm,projected_spend,n_NO_OFFER,n_PCT_10,n_PCT_20,n_FREE_SHIP,actions_changed_between_targets,interpretation
+PRIMARY_14D_MATURE_COHORT,ncm_14d,RANDOM_FREE_SHIP,6467,"CP01,CP02,CP03,CP04,CP05,CP06",2025-06-20 10:00:00,124.29534680739602,167.4434417628541,1111,0,0,1665,0,"scenario projections under different targets, not evidence of causal improvement"
+ACCRUED_45D_MATURE_COHORT,ncm_accrued_45d,RANDOM_FREE_SHIP,6467,"CP01,CP02,CP03,CP04,CP05,CP06",2025-06-20 10:00:00,-569.0519146609533,167.4434417628541,1111,0,0,1665,0,"scenario projections under different targets, not evidence of causal improvement"

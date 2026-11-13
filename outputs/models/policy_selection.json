@@ -1,24 +1,189 @@
 {
-  "selected_method": "ORIGINAL_TLEARNER",
+  "selected_policy": "RANDOM_FREE_SHIP",
+  "selected_config": null,
   "selection_campaigns": [
     "CP04",
     "CP05",
     "CP06"
   ],
-  "test_campaign": "CP07",
-  "candidate_methods": [
-    "ORIGINAL_TLEARNER",
-    "SHRUNK_TLEARNER",
-    "ACTION_MEAN",
-    "POOLED_XGBOOST"
+  "selection_metric": "maximum pooled customer-weighted DR incremental NCM under common feasible constraints",
+  "candidate_count": 21,
+  "holdout_used_for_selection": false,
+  "audit_campaign": "CP07",
+  "audit_status": "retrospective: already inspected in prior project work",
+  "uncertainty": "Validation winner is selection-biased; intervals condition on fixed models and allocations.",
+  "grid": [
+    {
+      "segment": "membership",
+      "shrinkage": 20.0
+    },
+    {
+      "segment": "membership",
+      "shrinkage": 100.0
+    },
+    {
+      "segment": "membership",
+      "shrinkage": 300.0
+    },
+    {
+      "segment": "membership_tier",
+      "shrinkage": 20.0
+    },
+    {
+      "segment": "membership_tier",
+      "shrinkage": 100.0
+    },
+    {
+      "segment": "membership_tier",
+      "shrinkage": 300.0
+    },
+    {
+      "segment": "membership_cart",
+      "shrinkage": 20.0
+    },
+    {
+      "segment": "membership_cart",
+      "shrinkage": 100.0
+    },
+    {
+      "segment": "membership_cart",
+      "shrinkage": 300.0
+    },
+    {
+      "segment": "membership_history",
+      "shrinkage": 20.0
+    },
+    {
+      "segment": "membership_history",
+      "shrinkage": 100.0
+    },
+    {
+      "segment": "membership_history",
+      "shrinkage": 300.0
+    }
   ],
-  "parameters": {
-    "n_estimators": 100,
-    "max_depth": 1,
-    "learning_rate": 0.03
+  "additional_profit_model": {
+    "family": "hurdle",
+    "purchase": "xgb",
+    "margin_weight": 0.5
   },
-  "rule": "retain original unless paired customer-bootstrap lower bound >0 after 3-comparison Bonferroni adjustment",
-  "test_status": "retrospective held-out reanalysis; CP07 was inspected in the earlier audit",
-  "interval_scope": "customer bootstrap re-estimates campaign logging probabilities; conditional on fitted outcome/cost models and fixed allocations; not future campaign drift",
-  "logging_propensity_assumption": "unconditional randomized offers within campaign; empirical frequencies; uniform sensitivity also reported"
+  "random_seed": 42,
+  "bootstrap_draws": 2000,
+  "OMP_NUM_THREADS": "unset",
+  "purchase_baseline_selection": "nested prior-campaign selection and refit of the same purchase-model procedure used for July",
+  "execution": "fresh spawn process per campaign; 300-second worker timeout; native OpenMP settings unchanged",
+  "selected_method": "RANDOM_FREE_SHIP",
+  "forecast_model": "HURDLE_XGB_HALF",
+  "allocation_model": "HURDLE_XGB_HALF",
+  "rule": "maximum pooled customer-weighted DR incremental NCM under common feasible constraints",
+  "prediction_selection": {
+    "selected_model": "HURDLE_XGB_HALF",
+    "config": {
+      "family": "hurdle",
+      "purchase": "xgb",
+      "margin_weight": 0.5
+    },
+    "development_campaigns": [
+      "CP04",
+      "CP05",
+      "CP06"
+    ],
+    "criterion": "minimum pooled out-of-time factual RMSE; MAE and stable name tie-break",
+    "candidate_registry": {
+      "ORIGINAL_TLEARNER": {
+        "family": "tlearner"
+      },
+      "POOLED_STUMPS": {
+        "family": "pooled",
+        "params": {
+          "n_estimators": 200,
+          "max_depth": 1,
+          "min_child_weight": 20,
+          "reg_lambda": 20
+        }
+      },
+      "POOLED_D2_100": {
+        "family": "pooled",
+        "params": {
+          "n_estimators": 100,
+          "max_depth": 2,
+          "min_child_weight": 20,
+          "reg_lambda": 20
+        }
+      },
+      "POOLED_D2_200": {
+        "family": "pooled",
+        "params": {
+          "n_estimators": 200,
+          "max_depth": 2,
+          "min_child_weight": 20,
+          "reg_lambda": 20
+        }
+      },
+      "POOLED_D2_STRONG": {
+        "family": "pooled",
+        "params": {
+          "n_estimators": 300,
+          "max_depth": 2,
+          "min_child_weight": 50,
+          "reg_lambda": 50
+        }
+      },
+      "POOLED_D3_STRONG": {
+        "family": "pooled",
+        "params": {
+          "n_estimators": 200,
+          "max_depth": 3,
+          "min_child_weight": 50,
+          "reg_lambda": 50
+        }
+      },
+      "SHARED_BASE_EFFECTS": {
+        "family": "shared",
+        "params": {
+          "n_estimators": 200,
+          "max_depth": 2,
+          "min_child_weight": 20,
+          "reg_lambda": 20
+        }
+      },
+      "HURDLE_XGB_MEAN": {
+        "family": "hurdle",
+        "purchase": "xgb",
+        "margin_weight": 0.0
+      },
+      "HURDLE_XGB_QUARTER": {
+        "family": "hurdle",
+        "purchase": "xgb",
+        "margin_weight": 0.25
+      },
+      "HURDLE_XGB_HALF": {
+        "family": "hurdle",
+        "purchase": "xgb",
+        "margin_weight": 0.5
+      },
+      "HURDLE_XGB_FULL": {
+        "family": "hurdle",
+        "purchase": "xgb",
+        "margin_weight": 1.0
+      },
+      "HURDLE_LOGIT_MEAN": {
+        "family": "hurdle",
+        "purchase": "logit",
+        "margin_weight": 0.0
+      },
+      "HURDLE_LOGIT_HALF": {
+        "family": "hurdle",
+        "purchase": "logit",
+        "margin_weight": 0.5
+      },
+      "HURDLE_LOGIT_FULL": {
+        "family": "hurdle",
+        "purchase": "logit",
+        "margin_weight": 1.0
+      }
+    },
+    "test_status": "CP07 retrospective; never used by this model-selection script"
+  },
+  "distinction": "Forecast model minimizes factual RMSE; allocation maximizes development constrained DR value."
 }

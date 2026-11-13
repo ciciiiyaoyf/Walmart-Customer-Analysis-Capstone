@@ -238,6 +238,28 @@ def build_baseline_policies(values, *, historical_mix: Mapping | None = None, bu
     return out
 
 
+def allocate_selected_policy(values, policy_name, *, historical_mix=None, **constraints):
+    """Apply a frozen allocation rule; simple baselines can beat optimization.
+
+    Model-based rules require values from that rule's own forecast model. The
+    caller must not substitute another model's scores after policy selection.
+    """
+    baseline_names = {"ALL_NO_OFFER", "PROPENSITY_PCT10", "HISTORICAL_MIX", "RANDOM_FREE_SHIP"}
+    if policy_name in baseline_names:
+        selected = build_baseline_policies(values, historical_mix=historical_mix, **constraints)[policy_name]
+        selected.attrs.update(solver_status="Feasible baseline", objective=float(selected.estimated_incremental_ncm.sum()))
+    else:
+        from src.modeling import CANDIDATES
+        from src.profit_models import PROFIT_CANDIDATES
+        from src.policy_learning import POLICY_GRID, policy_name as segment_name
+        known = set(CANDIDATES) | set(PROFIT_CANDIDATES) | {segment_name(c) for c in POLICY_GRID}
+        if policy_name not in known:
+            raise ValueError(f"Unknown allocation policy: {policy_name}")
+        selected = optimize_policy(values, **constraints)
+    selected.attrs["policy_name"] = policy_name
+    return selected
+
+
 def measurement_assignment(policy):
     """Export randomized experiment arms; NO_OFFER within POLICY stays POLICY."""
     required = {"customer_id", "recommended_action", "measurement_holdout"}

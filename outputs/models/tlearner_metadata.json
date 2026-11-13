@@ -54,6 +54,14 @@
     "top_category_viewed_30d",
     "top_purchase_category_90d"
   ],
+  "selected_method": "HURDLE_XGB_HALF",
+  "selected_policy": "RANDOM_FREE_SHIP",
+  "allocation_model": "HURDLE_XGB_HALF",
+  "forecast_config": {
+    "family": "hurdle",
+    "purchase": "xgb",
+    "margin_weight": 0.5
+  },
   "xgb_fixed": {
     "objective": "reg:squarederror",
     "min_child_weight": 10,
@@ -69,8 +77,8 @@
     "max_depth": 1,
     "learning_rate": 0.03
   },
-  "selected_method": "ORIGINAL_TLEARNER",
-  "selection": "retain original unless paired customer-bootstrap lower bound >0 after 3-comparison Bonferroni adjustment",
+  "xgb_selected_role": "reference T-learner / existing cost-model parameters, not the selected hurdle configuration",
+  "selection": "maximum pooled customer-weighted DR incremental NCM under common feasible constraints",
   "final_train_rows": {
     "NO_OFFER": 1826,
     "PCT_10": 1902,
@@ -78,8 +86,8 @@
     "FREE_SHIP": 1906
   },
   "cp07_pooled": {
-    "rmse": 63.3694083477858,
-    "mae": 27.411143191931384,
-    "r2": 0.005863333052387287
+    "rmse": 62.738469818744626,
+    "mae": 26.48058868350611,
+    "r2": 0.025561057376450202
   }
 }

@@ -407,7 +407,7 @@ def run_policy_validation(history, num, cat, params, tables, models_dir, draws=2
     return selection,test
 
 
-def run_return_sensitivity(history, july, clean, num, cat, params, method, tables, draws=2000):
+def run_return_sensitivity(history, july, clean, num, cat, params, method, tables, draws=2000, policy_rule=None):
     """Full re-fit/allocation sensitivity, never a reason to change the primary target.
 
     Compare 14-day and 45-day accrued-return labels on identical mature cohorts.
@@ -416,6 +416,9 @@ def run_return_sensitivity(history, july, clean, num, cat, params, method, table
     untouched confirmatory test. CP07 is excluded from the mature July fit.
     """
     from src.diagnostics import build_accrued_target
+    from src.policy import allocate_selected_policy
+    from src.propensity import select_purchase_config, fit_purchase_model
+    policy_rule = policy_rule or method
     tables=Path(tables)
     cutoff=pd.to_datetime(july.policy_as_of_ts).min()
     if pd.to_datetime(july.policy_as_of_ts).nunique() != 1:
@@ -425,16 +428,18 @@ def run_return_sensitivity(history, july, clean, num, cat, params, method, table
     exp=mature[mature.assignment_source=="exploration"]
     final_costs=fit_cost_models(history[history.assignment_source=="exploration"],num,cat,params,selection_campaign="CP06")
     july_cost=predict_costs(final_costs,july[num+cat])
-    purchase=make_propensity_pipe(num,cat).fit(history[num+cat],history.purchase_14d).predict_proba(july[num+cat])[:,1]
+    purchase_config, _, _ = select_purchase_config(history,num,cat)
+    purchase=fit_purchase_model(history,num,cat,purchase_config).predict_proba(july[num+cat])[:,1]
     juli=july.rename(columns={"policy_as_of_ts":"send_ts"})
     hold=get_holdout(july.customer_id)
+    mix=history.loc[history.assignment_source.eq('business_rule') & history.offer_type.ne('NO_OFFER'),'offer_type'].value_counts(normalize=True).to_dict()
     july_policies={}; july_summary=[]
     for name,target in [("PRIMARY_14D_MATURE_COHORT","ncm_14d"),("ACCRUED_45D_MATURE_COHORT",accrued)]:
         models=fit_action_models(exp,num,cat,params,method=method,target=target)
         mu=predict_actions(models,july[num+cat])
-        pol=optimize_policy(value_table(juli,mu,july_cost,purchase),budget=JULY_BUDGET,holdout_ids=hold)
+        pol=allocate_selected_policy(value_table(juli,mu,july_cost,purchase),policy_rule,historical_mix=mix,budget=JULY_BUDGET,holdout_ids=hold)
         july_policies[name]=pol
-        july_summary.append({"scenario":name,"target":target,"training_rows":len(exp),
+        july_summary.append({"scenario":name,"target":target,"policy_rule":policy_rule,"training_rows":len(exp),
             "training_campaigns":",".join(sorted(exp.campaign_id.unique())),"label_as_of_ts":str(cutoff),
             "projected_incremental_ncm":float(pol.estimated_incremental_ncm.sum()),
             "projected_spend":float(pol.estimated_promo_cost.sum()),
@@ -454,12 +459,14 @@ def run_return_sensitivity(history, july, clean, num, cat, params, method, table
     te=mature[mature.campaign_id.eq(campaign) & mature.assignment_source.eq("exploration")].sort_values("customer_id")
     cfg, _=tune_on_prior_campaigns(tr,num,cat)
     costs=predict_costs(fit_cost_models(tr,num,cat,cfg),te[num+cat])
-    purchase=make_propensity_pipe(num,cat).fit(training[num+cat],training.purchase_14d).predict_proba(te[num+cat])[:,1]
+    purchase_config, _, _ = select_purchase_config(training,num,cat)
+    purchase=fit_purchase_model(training,num,cat,purchase_config).predict_proba(te[num+cat])[:,1]
+    mix=training.loc[training.assignment_source.eq('business_rule') & training.offer_type.ne('NO_OFFER'),'offer_type'].value_counts(normalize=True).to_dict()
     allocation={}; nuisance={}
     for label,target in [("PRIMARY_14D","ncm_14d"),("ACCRUED_45D",accrued)]:
         fitted=fit_action_models(tr,num,cat,cfg,method=method,target=target)
         mu=predict_actions(fitted,te[num+cat])
-        allocation[label]=optimize_policy(value_table(te,mu,costs,purchase),budget=JULY_BUDGET*len(te)/JULY_SIZE,
+        allocation[label]=allocate_selected_policy(value_table(te,mu,costs,purchase),policy_rule,historical_mix=mix,budget=JULY_BUDGET*len(te)/JULY_SIZE,
                                            holdout_ids=get_holdout(te.customer_id))
         nuisance[label]=predict_actions(fit_action_models(tr,num,cat,cfg,target=target),te[num+cat])
     rows=[]

@@ -1,5 +1,5 @@
 action,model_mean_incremental_ncm_CP07,final_model_mean_incremental_ncm_all_exploration,step04_randomized_effect_CP01_07,interpretation
-NO_OFFER,0.0,0.0,0.0,"final-model historical averages are in-sample sanity checks, not independent validation"
-PCT_10,-1.9649157937967552,-1.0823973061728955,-1.077,"final-model historical averages are in-sample sanity checks, not independent validation"
-PCT_20,-7.900956676591117,-6.162105707528662,-6.174,"final-model historical averages are in-sample sanity checks, not independent validation"
-FREE_SHIP,6.681885252358779,3.5272623419809173,3.56,"final-model historical averages are in-sample sanity checks, not independent validation"
+NO_OFFER,0.0,0.0,0.0,"model averages are diagnostic, not independent evidence of treatment-effect accuracy"
+PCT_10,-1.670304841914043,-1.0670536034043732,-1.077,"model averages are diagnostic, not independent evidence of treatment-effect accuracy"
+PCT_20,-6.629838944185154,-5.745389263205966,-6.174,"model averages are diagnostic, not independent evidence of treatment-effect accuracy"
+FREE_SHIP,0.42556443399216787,1.1930021054802709,3.56,"model averages are diagnostic, not independent evidence of treatment-effect accuracy"

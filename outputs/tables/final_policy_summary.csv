@@ -1,10 +1,10 @@
 metric,value,limit,evaluation_basis
 customers scored,2776.0,,model_projection_not_independent_validation
-total expected incremental NCM ($),6408.91,,model_projection_not_independent_validation
-total expected NCM ($),51364.2,,model_projection_not_independent_validation
-expected promo spend ($),1306.57,<= 62000,model_projection_not_independent_validation
+total expected incremental NCM ($),1999.37,,model_projection_not_independent_validation
+total expected NCM ($),47027.88,,model_projection_not_independent_validation
+expected promo spend ($),167.44,<= 62000,model_projection_not_independent_validation
 offer share,0.5998,<= 0.6,model_projection_not_independent_validation
 PCT_20 share among offered,0.0,<= 0.15,model_projection_not_independent_validation
 measurement holdout share,0.0501,>= 0.05,model_projection_not_independent_validation
-incremental NCM vs PROPENSITY_PCT10 ($),15597.35,,model_projection_not_independent_validation
-incremental NCM vs HISTORICAL_MIX ($),10033.87,,model_projection_not_independent_validation
+incremental NCM vs PROPENSITY_PCT10 ($),4127.56,,model_projection_not_independent_validation
+incremental NCM vs HISTORICAL_MIX ($),3727.57,,model_projection_not_independent_validation

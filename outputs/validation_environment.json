@@ -12,7 +12,14 @@
     "joblib": "1.5.2",
     "matplotlib": "3.10.6",
     "nbclient": "0.10.2",
-    "nbformat": "5.10.4"
+    "nbformat": "5.10.4",
+    "threadpoolctl": "3.5.0"
   },
-  "execution": "notebooks 02-10 from committed cleaned snapshot; 01 raw CSV validation not rerun"
+  "execution": "Earlier reliability revision executed notebooks 02-10 from committed cleaned snapshot. Performance revision executed notebooks 05-10 plus all tests; raw CSV validation not rerun.",
+  "performance_base_commit": "1221dd1f6ae620bd71c04fb87e65bfb668511fbf",
+  "OMP_NUM_THREADS": "unset",
+  "performance_selection": "CP04-CP06 rolling development; CP07 retrospective evaluation only",
+  "focused_tests_passed": 74,
+  "purchase_search_blas_threads": 4,
+  "policy_validation_runtime": "Fresh spawn process per campaign; 300-second timeout; owned-worker cleanup; native OpenMP settings unchanged"
 }

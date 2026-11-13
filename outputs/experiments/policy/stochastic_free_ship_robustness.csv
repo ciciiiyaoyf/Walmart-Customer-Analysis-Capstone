@@ -1,0 +1,7 @@
+split,comparison,gain,ci_low,ci_high,policy,interpretation
+CP04-CP06,versus NO_OFFER,2.832629065659299,-1.5870047443174062,7.621033419528532,RANDOM_FREE_SHIP_EXPECTATION,averages recipient randomization; fixed seed-42 controls; never used for selection
+CP04-CP06,versus ORIGINAL_TLEARNER,4.740249059919194,0.6915450136618235,9.14936168190665,RANDOM_FREE_SHIP_EXPECTATION,averages recipient randomization; fixed seed-42 controls; never used for selection
+CP04-CP06,versus RANDOM_FREE_SHIP,-0.9849402996779477,-4.5177989091088335,2.431412761161068,RANDOM_FREE_SHIP_EXPECTATION,averages recipient randomization; fixed seed-42 controls; never used for selection
+CP07,versus NO_OFFER,7.901834428891817,1.356292994516808,15.347592497929258,RANDOM_FREE_SHIP_EXPECTATION,averages recipient randomization; fixed seed-42 controls; never used for selection
+CP07,versus ORIGINAL_TLEARNER,3.9304289090712436,-2.11504619875957,10.440082729770907,RANDOM_FREE_SHIP_EXPECTATION,averages recipient randomization; fixed seed-42 controls; never used for selection
+CP07,versus RANDOM_FREE_SHIP,-4.83959506287912,-9.765545695476225,-0.050466368834386245,RANDOM_FREE_SHIP_EXPECTATION,averages recipient randomization; fixed seed-42 controls; never used for selection

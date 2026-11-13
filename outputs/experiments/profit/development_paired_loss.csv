@@ -1,0 +1,3 @@
+comparison,loss,old_minus_new,ci95_lower,ci95_upper,n_rows,n_customers,interpretation
+HURDLE_XGB_HALF versus ORIGINAL_TLEARNER,mse,75.74526737620906,33.13923447938851,119.55804339248974,3237,2941,"positive favors selected; fixed fitted models, not model-selection uncertainty"
+HURDLE_XGB_HALF versus ORIGINAL_TLEARNER,mae,0.5510411303367897,0.2892744897139724,0.8185863477445311,3237,2941,"positive favors selected; fixed fitted models, not model-selection uncertainty"

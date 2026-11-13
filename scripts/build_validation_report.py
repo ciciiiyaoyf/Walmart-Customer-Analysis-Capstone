@@ -1,128 +1,162 @@
-"""Build the reviewable validation report from saved pipeline results."""
+"""Build the validation report from the current completed pipeline artifacts."""
 import json
 from pathlib import Path
 import pandas as pd
 
 ROOT=Path(__file__).resolve().parents[1]
-T=ROOT/"outputs/tables"
+T=ROOT/'outputs/tables'
+E=ROOT/'outputs/experiments'
+
+
+def money(value):
+    return ('-' if value<0 else '')+f'${abs(value):.2f}'
 
 
 def table(frame):
     def fmt(value):
-        if isinstance(value,float): return f"{value:.4f}" if pd.notna(value) else "NA"
-        return str(value).replace("|","/")
-    lines=["| "+" | ".join(frame.columns)+" |", "| "+" | ".join(["---"]*len(frame.columns))+" |"]
-    lines += ["| "+" | ".join(fmt(v) for v in row)+" |" for row in frame.itertuples(index=False,name=None)]
-    return "\n".join(lines)
+        if isinstance(value,float):return f'{value:.4f}' if pd.notna(value) else 'NA'
+        return str(value).replace('|','/')
+    lines=['| '+' | '.join(frame.columns)+' |','| '+' | '.join(['---']*len(frame.columns))+' |']
+    lines += ['| '+' | '.join(fmt(v) for v in row)+' |' for row in frame.itertuples(index=False,name=None)]
+    return '\n'.join(lines)
 
 
 def main():
-    selection=json.loads((ROOT/"outputs/models/policy_selection.json").read_text())
-    selected=selection["selected_method"]
-    compare=pd.read_csv(T/"before_after_model_metrics.csv")
-    candidates=pd.read_csv(T/"policy_candidate_selection.csv")
-    policies=pd.read_csv(T/"heldout_policy_comparison.csv")
-    row=policies.set_index("policy").loc[selected]
-    final=pd.read_csv(T/"optimization_summary.csv").iloc[0]
-    cold=pd.read_csv(T/"heldout_cold_start_evaluation.csv").query("policy == @selected")
-    returns=pd.read_csv(T/"return_sensitivity_july.csv")
-    costs=pd.read_csv(T/"promo_cost_metrics.csv").query("split == 'test_CP07'")
-    paired=pd.read_csv(T/"heldout_policy_paired_comparisons.csv")
-    data_check=json.loads((T/"before_after_data_check.json").read_text())
-    text=f'''**Correction and validation report — November 12, 2026**
+    selection=json.loads((ROOT/'outputs/models/policy_selection.json').read_text())
+    selected=selection['selected_method']
+    profit_selection=json.loads((E/'profit/selection.json').read_text())
+    policy_search=json.loads((E/'policy/selection.json').read_text())
+    stochastic=pd.read_csv(E/'policy/stochastic_free_ship_robustness.csv').query("split == 'CP07'")
+    stochastic_gain=stochastic.set_index('comparison').loc['versus NO_OFFER']
+    stochastic_change=stochastic.set_index('comparison').loc['versus ORIGINAL_TLEARNER']
+    if selected!=policy_search['selected_policy']:
+        raise ValueError('Rebuild pipeline outputs before reporting the new policy selection')
+    champion=profit_selection['selected_model']
+    compare=pd.read_csv(T/'before_after_model_metrics.csv')
+    old=compare.set_index('version').loc['original_refit_current_environment']
+    new=compare.set_index('version').loc['corrected_predictive_champion']
+    if new['model']!=champion:raise ValueError('Reference comparison has a stale predictive champion')
+    xgb_ci=pd.read_csv(E/'profit/cp07_paired_loss.csv').set_index('loss')
+    logistic=pd.read_csv(E/'propensity/cp07_comparison.csv')
+    log_ci=pd.read_csv(E/'propensity/cp07_paired_bootstrap.csv').set_index('metric')
+    development=pd.read_csv(E/'policy/development_ranking.csv')
+    policies=pd.read_csv(T/'heldout_policy_comparison.csv')
+    policy=policies.set_index('policy').loc[selected]
+    original_policy=policies.set_index('policy').loc['ORIGINAL_TLEARNER']
+    paired=pd.read_csv(T/'heldout_policy_paired_comparisons.csv').rename(columns={'gain':'paired_dr_difference'})
+    change=paired.query("reference == 'ORIGINAL_TLEARNER'").iloc[0]
+    final=pd.read_csv(T/'optimization_summary.csv').iloc[0]
+    cold=pd.read_csv(T/'heldout_cold_start_evaluation.csv').query('policy == @selected')
+    returns=pd.read_csv(T/'return_sensitivity_july.csv')
+    costs=pd.read_csv(T/'promo_cost_metrics.csv').query("split == 'test_CP07'")
+    data_check=json.loads((T/'before_after_data_check.json').read_text())
+    behavior_change=json.loads((T/'performance_revision_changes.json').read_text())
+    environment=json.loads((ROOT/'outputs/validation_environment.json').read_text())
+    test_evidence=(f"The recorded verification run passed **{environment['focused_tests_passed']} focused tests**."
+                   if 'focused_tests_passed' in environment else 'The completed test run is recorded with the revision.')
+    cold_text=(table(cold[['subgroup','n','matched_rows','dr_incremental_ncm_per_customer','ci_low','ci_high']])
+               if len(cold) else 'No selected-policy subgroup estimate was saved; July transport remains unvalidated.')
+    text=f'''# Correction and performance validation - November 12, 2026
 
-The code is more reliable and its performance claims are better supported. **The retained NCM model did not improve in predictive accuracy when compared with the original model refit in the same environment. Profitable personalized targeting is still not established.**
+**The new code improves prediction modestly and selects a simple allocation; policy superiority remains uncertain.** Earlier corrections fixed accounting, timing, constraints, and misleading evaluation but retained the original model, so its predictions stayed unchanged. This revision changes the fitted models and selects allocation independently on development campaigns.
 
-The reference snapshot is `ea950d0e9011ff0e105f5d93758ab54944a7c75f`. The original saved results are preserved in `outputs/reference/`. All changes were developed for the user's `main` branch.
+- Expected-NCM prediction: CP07 RMSE falls from **{old.rmse:.4f} to {new.rmse:.4f}** ({100*(old.rmse-new.rmse)/old.rmse:.2f}%), and MAE from **{old.mae:.4f} to {new.mae:.4f}** ({100*(old.mae-new.mae)/old.mae:.2f}%).
+- Logistic regression: small improvements in average precision and probability quality; paired uncertainty includes zero improvement.
+- Feasible allocation: **{selected}** wins CP04-CP06 development selection. Averaging feasible random recipient sets, CP07 DR incremental NCM is **${stochastic_gain.gain:.2f} per customer** versus no offer; the paired difference versus the original feasible policy is **${stochastic_change.gain:.2f}**, 95% interval **[{money(stochastic_change.ci_low)}, {money(stochastic_change.ci_high)}]**. The interval includes zero.
 
-**Before and after: the same prediction task and runtime**
+CP07 was already inspected in earlier project work. These are **retrospective comparisons**, not a new untouched confirmatory test. They are not realized July gains. The policy result favors a simple offer rule; it does not demonstrate a benefit from personalization.
+
+## Fair predictive comparison
+
+The reference is commit `ea950d0e9011ff0e105f5d93758ab54944a7c75f`. The original model is refitted in the current environment and compared on identical CP07 assignments, observed actions, and targets. Saved original metrics are retained for provenance, not used to attribute runtime differences to this revision.
 
 {table(compare)}
 
-The original saved snapshot differs slightly from the original refit in this runtime. That difference must not be attributed to the corrections: the original refit and corrected retained model have identical metrics. Primary 14-day NCM unchanged: **{data_check['primary_ncm_unchanged']}**. Feature differences across all 43 predictors: **{len(data_check['feature_differences'])}**.
+Predictive champion: **{champion}**. Allocation policy: **{selected}**. These are different selections: prediction accuracy does not establish good treatment-effect ranking. Primary 14-day NCM unchanged: **{data_check['primary_ncm_unchanged']}**. Changed feature columns: **{len(data_check['feature_differences'])}**. Factual CP07 predictions changed for **{data_check['factual_predictions_changed_rows']}** assignments. Unchanged source data do not imply unchanged fitted predictions.
 
-RMSE remains a valid conditional-mean prediction diagnostic; MAE and R² are supporting diagnostics. They do not measure policy quality directly.
+Compared with the immediately preceding reliability revision `{behavior_change['comparison_commit'][:7]}`, **{behavior_change['july_actions_changed']:,} of {behavior_change['july_customers']:,} July actions changed**. That is a concrete behavior change, not proof of higher realized profit. The comparison and input fingerprint are saved in `performance_revision_changes.json`.
 
-**Model selection, without choosing a winner on CP07**
+## XGBoost: why the change matters
 
-Four predeclared candidates were compared: original T-learner, a 50% shrinkage version, action means, and a pooled XGBoost model with treatment as a feature. The development folds are CP04, CP05, and CP06. Each fold uses earlier campaigns only, and XGBoost tuning uses the last prior campaign as inner validation (for example, CP04 uses CP03 to tune and CP01–02 to fit candidates). Cost-model families are likewise chosen on the last prior campaign before refitting.
+The original fits four independent regressors. About 88% of randomized training rows are nonbuyers with zero NCM, and some purchaser margins are negative. The selected two-part model shares information across action arms and estimates purchase probability times signed purchaser margin. The margin forecast blends pooled XGBoost with each training arm's purchaser mean, using 50% weight on each. It neither logs the target nor clips negative profit. Future purchase is a training label, never a scoring feature.
 
-Replacement requires a positive lower bound for a paired development improvement, with customer-cluster bootstrap and Bonferroni adjustment across three comparisons. Otherwise the original is retained. This conservative rule is not a claim that the original is optimal.
+Fourteen fixed configurations compare original, pooled, shared-baseline, and two-part estimators. Rolling CP04-CP06 validation fits earlier campaigns only; minimum pooled factual RMSE selects the winner. The configuration is serialized before CP07 evaluation. The code and full search results are in `src/profit_models.py` and `outputs/experiments/profit/`.
 
-{table(candidates)}
+On CP07, old-minus-new MSE is **{xgb_ci.loc['mse','old_minus_new']:.2f}**, paired customer-bootstrap 95% interval **[{xgb_ci.loc['mse','ci95_lower']:.2f}, {xgb_ci.loc['mse','ci95_upper']:.2f}]**. MAE improvement is **{xgb_ci.loc['mae','old_minus_new']:.3f}**, interval **[{xgb_ci.loc['mae','ci95_lower']:.3f}, {xgb_ci.loc['mae','ci95_upper']:.3f}]**. Five thousand draws hold fits fixed and omit selection, retraining, and future-campaign uncertainty. Three arm-specific RMSEs improve, while NO_OFFER worsens slightly. R² remains low, so realized individual profit remains difficult to predict.
 
-Selected method: **{selected}**. The selection is written to `outputs/models/policy_selection.json` before CP07 evaluation. CP07 was already inspected in the preceding audit, so this is explicitly a **retrospective held-out re-analysis**, not a new prospective test. Do not repeatedly revise the method based on CP07 and continue treating it as untouched.
+RMSE is appropriate for expected dollar NCM and squared-error fitting. MSE adds no independent ranking information because RMSE is its square root; on identical observations R² gives the same ranking. MAE describes absolute dollar errors, but minimizing it instead targets a conditional median, often zero in this sparse outcome. None of these metrics proves causal uplift or policy profit.
 
-**Independent evaluation of the complete constrained policy**
+## Logistic regression: improvement is small
 
-The evaluator now applies one action per customer, a population-scaled budget, a 60% offer cap, PCT_20 at most 15% of offered customers, and a 5% reserved NO_OFFER holdout. Models, purchase rankings, costs, and historical mix use earlier campaigns. Competitors share the same constraints and reserved controls.
+Rolling CP04-CP06 development compares transformations, compact interactions, regularization, and nested temporal probability calibration. Selection maximizes mean average precision subject to log-loss/Brier safeguards. The winner uses signed-log transforms and compact interactions, C = 0.01, and no additional calibration. Raw and improved models use the same training/test populations and current runtime.
 
-Observed randomized outcomes are evaluated with doubly robust (DR) and Hájek estimators. DR uses one common reward nuisance model, fitted on prior data, for all competitors. Intervals use 2,000 customer-cluster bootstrap draws, re-estimating campaign/action frequencies inside every draw. Paired comparisons use the same sampled customers. Costs receive an analogous DR check.
+{table(logistic[['model','roc_auc','pr_auc','log_loss','brier','observed_mean','predicted_mean']])}
 
-The selected feasible policy's CP07 incremental NCM estimate is **${row.dr_incremental_ncm_per_customer:.2f} per customer**, with a **95% interval [${row.ci_low:.2f}, ${row.ci_high:.2f}]**. The interval includes zero. The former +$8.73 estimate evaluated an unconstrained policy offering to 87.2% of customers; it is not an apples-to-apples before/after estimate.
+The `pr_auc` column is **average precision**, not trapezoidal PR area. Its paired CP07 change is **{log_ci.loc['pr_auc','difference_selected_minus_original']:.6f}**, with 95% interval **[{log_ci.loc['pr_auc','ci_low']:.6f}, {log_ci.loc['pr_auc','ci_high']:.6f}]**. All four paired metric intervals include zero improvement. Retaining the development winner is reasonable, but a major reliable predictive advance is not established. Purchase propensity describes buying under the historical offer mixture; it is not untreated purchase probability or causal uplift.
 
-{table(policies[['policy','dr_incremental_ncm_per_customer','ci_low','ci_high','hajek_incremental_ncm_per_customer','matched_rows','offered_share']])}
+## Select the complete feasible policy separately
+
+Development compares {policy_search['candidate_count']} allocation rules, including model optimizers, pooled/segment shrinkage rules, and simple baselines. Every fold uses earlier campaigns for reward and cost fitting, with the same budget, offer cap, PCT_20 cap, and reserved controls. The winner maximizes pooled customer-weighted development DR value. A rule need not clear a multiple-comparison-adjusted confidence threshold to replace the original; uncertainty is reported separately.
+
+{table(development.head(8))}
+
+Development ranking is selection-biased. The frozen winner is evaluated on CP07 with common reward nuisance predictions for all policies. CP07 uses 1,060 randomized assignments and the population-scaled budget. The former unconstrained +$8.73 diagnostic offered promotions to 87.2% of customers and is not the baseline for this comparison.
+
+{table(policies[['policy','dr_incremental_ncm_per_customer','ci_low','ci_high','hajek_incremental_ncm_per_customer','offered_share']])}
 
 {table(paired[['reference','paired_dr_difference','ci_low','ci_high']])}
 
-The simple seeded random-FREE_SHIP reference performs well on CP07. These individual test intervals are nominal, not adjusted for searching over test comparisons. They should motivate new validation rather than changing the chosen model after seeing CP07. Baseline randomization uses a fixed seed; the intervals condition on that allocation realization.
+The saved seed-42 allocation has DR gain **${policy.dr_incremental_ncm_per_customer:.2f}**, interval **[${policy.ci_low:.2f}, ${policy.ci_high:.2f}]**, and paired difference versus the original **${change.paired_dr_difference:.2f}**, interval **[${change.ci_low:.2f}, ${change.ci_high:.2f}]**. That fixed recipient set is unusually favorable. A diagnostic averages feasible random recipient sets with the same controls:
 
-Actual logging probabilities are not supplied. The primary calculation assumes unconditional randomization within each campaign and uses empirical action frequencies. The table also saves a uniform-0.25 propensity sensitivity. If assignment was stratified or used different known probabilities, supply that design instead. Intervals remain conditional on fitted models and fixed batch allocations; they do not include future campaign drift, transport uncertainty, or all retraining uncertainty. Negative endpoints for DR cost intervals reflect estimator uncertainty, not negative realized costs.
+{table(stochastic[['comparison','gain','ci_low','ci_high']])}
 
-**July transport and return sensitivity materially limit confidence**
+The averaged paired interval includes zero: **a clear policy improvement over the original is not established across recipient randomizations**. The seed was fixed before testing, but that does not make its favorable recipient realization representative. This diagnostic does not retune selection. The simple rule wins development; personalization has not shown a dependable advantage. A new randomized campaign is needed to assess future performance.
 
-July has no prior campaign exposure, no recent purchases, and seven entirely missing feature columns (including five email/redemption features). Missingness, zero rates, ranges, and unseen categories are saved in `july_feature_support.csv`. Imputation makes scoring possible; it does not validate transport.
+Actual logging probabilities were not supplied. Primary estimates assume unconditional randomized assignment within campaign and use empirical action frequencies; uniform-0.25 sensitivity is also saved. Customer-cluster bootstrap draws retain repeated-customer observations and re-estimate logging frequencies. Policy intervals use 2,000 draws, condition on fitted models and fixed allocations, and omit future campaign drift and full retraining uncertainty. Nominal test intervals are not adjusted for repeated earlier inspection of CP07.
 
-Comparable historical subgroups are small. The selected policy's subgroup results are:
+## July support, accounting, and cost remain material limits
 
-{table(cold[['subgroup','n','matched_rows','dr_incremental_ncm_per_customer','ci_low','ci_high']])}
+July has no historical campaign exposure, no recent purchases in the available 90-day window, and seven entirely missing feature columns. Imputation permits scoring; it does not validate transport. Selected-policy cold-history subgroup evidence is:
 
-The negative subgroup point estimates and broad intervals are a reason for caution, not proof of either benefit or harm. Mutable customer-profile fields still require the documented static-snapshot assumption; timestamps for that history were not supplied.
+{cold_text}
 
-The return code now reconciles early, late, applicable, and total refunds without double counting. The `all_linked` configuration passes; the default 14-day target is preserved. Multiple refund events no longer duplicate an order's feature contributions.
+Subgroups are small and uncertain. Profile fields without effective-date history still require the explicit static-snapshot assumption.
 
-A full 45-day accrued-return sensitivity refits models and re-optimizes allocations on the **same mature training cohort** under both targets. It excludes CP07 from July training for this sensitivity because its 45-day labels are not mature at June 20. Future refunds are excluded. CP06 sensitivity is also evaluated after its labels mature and is labeled retrospective. The 45-day horizon is an explicit sensitivity assumption, not a newly verified business accounting rule.
+Earlier fixes remain meaningful: eligible events precede decisions; duplicate refund events no longer duplicate purchase features; early/late/total refunds reconcile; the allocator enforces the actual constraints; and prospective measurement compares the full randomized POLICY arm with controls. These improve validity even when prediction accuracy is unchanged.
+
+The 45-day accrued-return sensitivity uses identical mature training cohorts and excludes CP07 from July training. It retains the selected allocation rule and re-estimates values under both financial targets. It is an accounting stress test, not a verified new business rule or fresh test.
 
 {table(returns[['scenario','training_rows','projected_incremental_ncm','projected_spend','actions_changed_between_targets']])}
 
-The two target scenarios change **{int(returns.actions_changed_between_targets.iloc[0])} of 2,776 assignments**. Their projected values use different accounting targets and must not be compared as proof that one model is better. See `return_sensitivity_cp06.csv` for outcome-based retrospective sensitivity. The deployed primary target remains 14-day NCM.
+The random allocation does not change between targets. Its mature-cohort projected increment changes sign under accrued returns: that is a material limitation, not an improvement. Different-target projections cannot establish that one model is better, and differ from the primary July projection because this sensitivity excludes CP07 training.
 
-**Cost models and July projection**
-
-Notebook 08 chooses each cost model using CP06 only, comparing XGBoost with the action mean; CP07 follows selection. FREE_SHIP selects the mean. Its CP07 RMSE is about $0.890 versus about $0.897 in the original saved XGBoost output: a small improvement on that metric, while mean cost calibration remains imperfect.
+Cost models are selected by action on prior-campaign RMSE before CP07 testing. Mean bias matters for aggregate spend even when individual RMSE improves.
 
 {table(costs[['action','candidate','rmse','mae','obs_mean','pred_mean','relative_mean_bias']])}
 
-The current July allocation contains {int(final.n_FREE_SHIP)} FREE_SHIP, {int(final.n_PCT_10)} PCT_10, {int(final.n_PCT_20)} PCT_20, and {int(final.n_NO_OFFER)} NO_OFFER customers. All {int(final.holdout_customers)} controls remain NO_OFFER. Projected incremental NCM is **${final.objective_total_expected_incremental_ncm:,.2f}**, and projected promotion spend is **${final.expected_promo_spend:,.2f}**. These are model projections, not observed gains or independently proven profit. Mathematical feasibility under estimated costs does not guarantee realized spending.
+The July submission contains {int(final.n_FREE_SHIP)} FREE_SHIP, {int(final.n_PCT_10)} PCT_10, {int(final.n_PCT_20)} PCT_20, and {int(final.n_NO_OFFER)} NO_OFFER customers. Its {int(final.holdout_customers)} reserved controls remain NO_OFFER. Forecast incremental NCM is **${final.objective_total_expected_incremental_ncm:,.2f}**, and forecast promotion spend is **${final.expected_promo_spend:,.2f}**. These use the improved predictor to describe the selected allocation; they are not observed profit. Comparing this forecast with an old optimizer forecast under different models is not evidence of better or worse realized profit. Estimated-cost feasibility does not guarantee realized spending.
 
-**Correct prospective measurement**
+## Reproduction and prospective measurement
 
-Use `measurement_assignment.csv` and `src.measurement.estimate_policy_itt`. Compare all customers randomly assigned to the POLICY arm, including optimizer-selected NO_OFFER customers, against the randomized holdout. Require complete outcome coverage, use the agreed accounting horizon, and perform a power calculation. The estimator separately reports the arm contrast and the campaign-level scaled effect; it does not silently extrapolate to a different rollout intensity.
+Raw CSVs are intentionally absent. A clean-data rebuild validates transformations after cleaning, not the unavailable raw inputs. The original reference commit must be available locally for the fair comparison. Core versions are pinned in `requirements.txt`; `outputs/validation_environment.json` records the run environment.
 
-**Verification and reproducibility**
-
-- All **49 focused tests passed**: refund modes and maturity, feature merge safety, clustered inference, DR identities and logging-probability resampling, exact policy coverage, optimizer feasibility, baseline constraints, deterministic ordering, selection separation, cost selection timing, and ITT analysis.
-- Notebooks **02–10 executed successfully** from the committed clean snapshot. Raw CSVs are intentionally absent; notebook 01's original raw-data validation was not rerun and is not claimed as newly verified.
-- The walkthrough PDF was rebuilt, and documentation/dashboard distinguish projected values from held-out evidence.
-- Core package versions are pinned in `requirements.txt`; the actual run environment is recorded in `outputs/validation_environment.json`.
-
-Reproduce from a checkout with the pinned environment:
+Policy-validation campaigns execute in separate worker processes with deadlines and cleanup, isolating native learner state across folds. A long-lived-process rerun encountered a native XGBoost failure while standalone evaluation succeeded. Process isolation is a practical safeguard; it does not establish the underlying library bug or its cause. Preserve recorded seeds and native-thread settings when comparing numerical results.
 
 ```text
 python -m pytest -q
 python run_pipeline.py --from-clean
 python scripts/compare_reference.py
 python scripts/build_validation_report.py
+python docs/build_walkthrough_pdf.py
 ```
 
-The reference comparison needs the original Git commit available locally. Full raw-data validation requires the 11 source CSVs and `python run_pipeline.py` without `--from-clean`.
+{test_evidence} Focused checks cover signed-margin factorization, exploration-only fitting, serialization, assignment alignment, feature timing, refund accounting/maturity, DR/bootstrap logic, feasible allocation, and ITT analysis. Recorded execution scope: {environment['execution']} The commands above reproduce the checks; generating this report itself does not rerun them. The walkthrough PDF explains prediction and allocation separately.
 
-The next substantive improvement requires stronger evidence for the target population, including a correctly analyzed randomized campaign. More favorable model projections alone would not demonstrate improvement.
+Before launch, predefine the financial horizon, randomization, power, monitoring, and analysis. Compare **all** customers randomized to the POLICY arm, including those given NO_OFFER, with the randomized control arm using `src.measurement.estimate_policy_itt`. A 5% minimum control share satisfies the project constraint but does not guarantee adequate power.
 '''
-    path=ROOT/"docs/VALIDATION_REPORT.md"
-    path.write_text(text,encoding="utf-8")
+    path=ROOT/'docs/VALIDATION_REPORT.md'
+    path.write_text(text,encoding='utf-8')
     print(path)
 
 
-if __name__ == "__main__":
-    main()
+if __name__=='__main__':main()

@@ -4,7 +4,11 @@ This project recommends `NO_OFFER`, `PCT_10`, `PCT_20`, or `FREE_SHIP` for each 
 
 **Read [the validation report](docs/VALIDATION_REPORT.md) for measured before/after results and limitations.** July totals in the submission and dashboard are model projections. An optimizer ranking first under the predictions it maximizes is not independent evidence of profitable targeting.
 
-**Measured outcome of the correction:** the conservative development rule retained `ORIGINAL_TLEARNER`. Its same-runtime CP07 RMSE is unchanged at **63.3694**. The complete feasible policy's retrospective DR lift is **$3.97 per customer**, with a 95% interval **[-$2.23, $9.68]**; profitable personalization remains unproven. All **49 focused tests passed**. Reliability and evaluation improved; an improvement in the NCM model's predictive accuracy was not demonstrated. The report also records cost-model changes, small cold-history samples, and substantial sensitivity to return accounting.
+**Measured outcome of the performance revision:** two-part XGBoost reduces CP07 NCM RMSE from **63.3694 to 62.7385** (1.00%) and MAE from **27.4111 to 26.4806** (3.39%). Logistic regression's average precision increases from **0.2323 to 0.2367**, with small improvements in log loss and Brier score; its paired uncertainty still includes no improvement. A simple constrained `RANDOM_FREE_SHIP` policy wins development validation and replaces personalized allocation. Averaging feasible random recipient sets, its retrospective CP07 DR gain is **$7.90 per customer** versus no offer, and **$3.93** versus the original feasible policy, with paired 95% interval **[-$2.12, $10.44]**. Policy superiority remains uncertain.
+
+The saved seed-42 allocation happens to produce a more favorable CP07 estimate: $12.74 versus no offer and a paired $8.77 improvement over the original, interval [$0.36, $18.33]. That result conditions on the chosen recipients. It must not be presented as a reliable gain across recipient randomizations or as observed July profit.
+
+The earlier corrections improved correctness and evaluation while retaining the original model, so unchanged predictions were expected then. This revision changes the fitted models and selected allocation. [The validation report](docs/VALIDATION_REPORT.md) separates these improvements and their limits.
 
 The revised pipeline separates three questions:
 
@@ -15,6 +19,10 @@ The revised pipeline separates three questions:
 ## Run
 
 Use **Python 3.13** in an isolated environment. The corrected run's core library versions are pinned in `requirements.txt`; ensure the notebooks' `python3` kernel uses that same environment.
+
+For exact before/after comparisons, also preserve the recorded seed and native-thread settings in `outputs/validation_environment.json` and the selection files. The current run records `OMP_NUM_THREADS` as unset. Different numerical environments can change tied optimizer allocations; compare results in the same runtime.
+
+Policy validation executes campaign folds in separate worker processes with time limits and cleanup. This isolates native learner state between campaigns. It addresses a failure seen during a long-lived-process rerun; the underlying native-library cause was not established.
 
 ```bash
 python -m pip install -r requirements.txt
@@ -49,8 +57,8 @@ The final `policy_submission.csv` is also copied to `outputs/final/`. Its column
 | 02 | `02_build_historical_features` | Build 43 pre-send features using the shared feature builder |
 | 03 | `03_construct_14_day_outcomes` | Construct purchases, NCM, promotion cost, and explicit refund-timing outcomes |
 | 04 | `04_business_analysis` | Descriptive KPIs and exploration-only effects with customer-clustered uncertainty |
-| 05 | `05_logistic_propensity_model` | Purchase-propensity baseline |
-| 06 | `06_tlearner_xgboost` | Action-specific expected NCM models and diagnostic evaluation |
+| 05 | `05_logistic_propensity_model` | Temporally selected logistic purchase model with transformed features/interactions |
+| 06 | `06_tlearner_xgboost` | Two-part XGBoost comparison and separate feasible-policy selection |
 | 07 | `07_score_july_population` | Rebuild features at each July cutoff and score each action |
 | 08 | `08_estimate_promotion_cost` | Expected promotion cost per customer and action |
 | 09 | `09_milp_policy_optimization` | Reserve randomized controls and solve the constrained allocation |
@@ -64,7 +72,9 @@ An action model estimates `E[NCM | customer features, action]`. Estimated increm
 
 Squared-error fitting and RMSE are appropriate diagnostics for **expected dollar NCM**. MAE and R² supply additional descriptions; R² and RMSE give equivalent rankings on the same observations. These factual metrics do not establish that the policy chooses the best action. Matching average effects on the same rows used for fitting is only an in-sample plausibility check.
 
-The revised validation compares the original T-learner with simpler/shrunk and pooled alternatives. Candidate selection uses rolling CP04–CP06 validation with nested temporal hyperparameter tuning: each fold tunes on its last prior campaign and refits on earlier campaigns only (CP04 uses CP03 internally, CP05 uses CP04, CP06 uses CP05). CP07 is evaluated after the family choice is fixed, with CP06 as its inner tuning campaign. A replacement requires a positive lower confidence bound for paired DR improvement after correction for three candidate comparisons; otherwise the original is retained. The report identifies the actual choice and evidence.
+The predictive search compares 14 fixed expected-NCM configurations on rolling CP04-CP06 validation, fitting prior campaigns only. Minimum pooled factual RMSE selects `HURDLE_XGB_HALF`: pooled XGBoost purchase probability times a signed purchaser-margin estimate, shrunk 50% toward each training arm's purchaser mean. It handles the roughly 88% nonbuyer zeros without discarding negative profit. The logistic search considers feature transforms, compact interactions, regularization, and nested probability calibration; selection favors average precision subject to log-loss/Brier safeguards.
+
+A separate development search compares 21 feasible allocation rules, including model optimizers, pooled/segment rules, and simple baselines. Maximum pooled development DR value selects `RANDOM_FREE_SHIP`. Prediction and allocation winners answer different questions. The previous rule that kept the original unless a multiple-comparison-adjusted interval excluded zero has been replaced by transparent validation ranking with uncertainty reported separately. All choices are saved before the CP07 retrospective comparison. See `outputs/experiments/` for the full search results.
 
 Logged assignment probabilities are not supplied. Evaluation estimates action frequencies separately within each campaign and therefore assumes unconditional randomized offers within campaign. A uniform 25%-per-action sensitivity is also reported. The customer-cluster bootstrap retains all sampled customers' campaign observations and re-estimates campaign action frequencies in each draw. Its intervals are conditional on the fitted outcome/cost models and fixed allocations; they do not include model-refitting uncertainty or future campaign drift.
 
@@ -91,7 +101,7 @@ The allocation uses one action per customer and enforces:
 - `PCT_20` no greater than **15% of commercial-offer recipients**.
 - At least **5%** randomly reserved as measurement controls and assigned `NO_OFFER`.
 
-The allocator uses SciPy/HiGHS through `src/policy.py`, without PuLP or a machine-specific CBC executable path. Unused budget is acceptable when predicted gains or other constraints limit useful offers. Feasibility under predicted spend is distinct from calibration of actual spend.
+The candidate optimizer uses SciPy/HiGHS through `src/policy.py`, without PuLP or a machine-specific CBC executable path. The production allocation follows the development-selected feasible policy; currently this is seeded random FREE_SHIP assignment under the same budget, offer cap, and controls. The improved XGBoost model still supplies action-value forecasts. Unused budget is acceptable, and feasibility under predicted spend is distinct from calibration of actual spend.
 
 For July cost models, Step 08 selects XGBoost or an action-mean predictor **separately for each commercial action using CP06 RMSE**, with the simpler mean winning ties. The choice is fixed before CP07 evaluation and then refitted for July. Cost diagnostics include absolute and relative mean bias; a lower RMSE alone does not guarantee calibrated aggregate spend.
 

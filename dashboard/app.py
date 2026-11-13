@@ -1,5 +1,6 @@
 """Saved-results dashboard: July projections and historical policy evaluation."""
 from pathlib import Path
+import json
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -39,6 +40,14 @@ act = table("policy_action_summary.csv")
 cmp = table("baseline_policy_comparison.csv")
 aud = table("customer_policy_audit.csv")
 heldout = table("heldout_policy_comparison.csv", optional=True)
+selection_path = ROOT / "outputs" / "models" / "policy_selection.json"
+selection = json.loads(selection_path.read_text(encoding="utf-8")) if selection_path.exists() else {}
+selected_policy = selection.get("selected_policy", selection.get("selected_method", "see saved selection"))
+forecast_model = selection.get("forecast_model", "see saved model comparison")
+logistic_comparison = table("logistic_cp07_comparison.csv", optional=True)
+logistic_intervals = table("logistic_cp07_paired_bootstrap.csv", optional=True)
+profit_comparison = table("model_comparison_cp07.csv", optional=True)
+milp = table("milp_policy_detailed.csv", optional=True)
 
 spend = pol.estimated_promo_cost.sum()
 incremental = pol.estimated_incremental_ncm.sum()
@@ -49,13 +58,13 @@ holdout_share = pol.measurement_holdout.mean()
 
 st.title("PromoPilot · July promotion policy")
 st.caption("July amounts are model projections. Historical randomized-outcome evaluation is shown separately.")
-st.info(
-    "The optimizer maximizes predicted value, so its lead in the projected comparison "
-    "does not independently establish profitable targeting. Read the held-out estimates and confidence intervals."
-)
+st.write(f"Selected allocation: **{selected_policy}** · Profit forecast model: **{forecast_model}**")
+st.info("The allocation rule is chosen on CP04–06 constrained policy value. The profit model is chosen "
+        "on predictive error. The model-optimized allocation remains a separate challenger; maximizing "
+        "its forecast does not independently establish profitable targeting.")
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs(
-    ["Overview", "Policy mix", "Projected baselines", "Held-out evaluation", "Customer lookup"]
+tab1, tab2, tab3, tab4, tab_models, tab5 = st.tabs(
+    ["Overview", "Policy mix", "Projected policies", "Historical evaluation", "Model performance", "Customer lookup"]
 )
 
 with tab1:
@@ -68,6 +77,13 @@ with tab1:
     st.progress(min(spend / BUDGET, 1.0), text=f"Projected budget used: {spend / BUDGET:.1%}")
     st.progress(min(offer_share / MAX_OFFER, 1.0), text=f"Offer cap used: {offer_share / MAX_OFFER:.1%}")
     st.caption("Budget feasibility uses predicted spend; it is separate from cost calibration.")
+    if selected_policy == "RANDOM_FREE_SHIP":
+        st.write("The selected rule randomly assigns free shipping within the offer cap, keeps the fixed "
+                 "measurement controls, and respects the projected budget. Recipients are not ranked by predicted uplift.")
+    if not milp.empty:
+        aligned = pol.set_index("customer_id").recommended_action
+        challenger = milp.set_index("customer_id").recommended_action.reindex(aligned.index)
+        st.caption(f"The model-optimized challenger assigns a different action to {(aligned != challenger).sum():,} customers.")
     with st.expander("Interpretation and prospective measurement"):
         st.write(
             "July customers have no historical campaign exposure or available purchase in the prior 90 days. "
@@ -109,6 +125,7 @@ with tab3:
         "Every policy is scored with the same fitted outcome models. These are forecasts under a shared "
         "model, not observed outcomes or independent estimates of policy superiority."
     )
+    st.caption("SELECTED_POLICY is the rule used for July. MODEL_OPTIMIZED_MILP maximizes the model's projected value and is retained for comparison.")
     st.bar_chart(cmp.set_index("policy").total_expected_incremental_ncm)
     show = (
         ["policy"]
@@ -189,10 +206,55 @@ with tab4:
         st.dataframe(view[columns], width="stretch", hide_index=True)
         st.caption(
             "Selection and paired-improvement evidence are documented in docs/VALIDATION_REPORT.md. "
-            "A larger point estimate alone is insufficient to declare a replacement model better. "
+            "The development winner is selected by its point estimate; uncertainty is reported separately. "
             "The bootstrap re-estimates campaign action frequencies but conditions on fitted models and "
             "fixed allocations; it does not cover future campaign or population changes."
         )
+    robustness_path = ROOT / "outputs" / "experiments" / "policy" / "stochastic_free_ship_robustness.csv"
+    if robustness_path.exists():
+        with st.expander("Free-shipping recipient randomization check"):
+            st.write("This check averages over random recipient subsets while preserving the fixed controls. "
+                     "It shows how much the seed-42 result depends on the particular recipients selected. "
+                     "It was not used to change the selected policy.")
+            st.dataframe(pd.read_csv(robustness_path), width="stretch", hide_index=True)
+
+with tab_models:
+    st.subheader("Logistic regression: purchase probabilities")
+    st.caption("Both the original refit and the selected model train through CP06 and predict CP07. "
+               "Average precision measures ranking among purchasers; log loss and Brier score measure probability accuracy. "
+               "CP07 is a retrospective audit, and the models were selected on CP04–06.")
+    if logistic_comparison.empty:
+        st.info("Rebuild notebook 05 to display the model comparison.")
+    else:
+        fair = logistic_comparison[logistic_comparison.model.eq("original_fair_refit")]
+        chosen = logistic_comparison[logistic_comparison.model.eq("selected")]
+        if not fair.empty and not chosen.empty:
+            cols = st.columns(3)
+            for column, key, label, direction in zip(cols, ["pr_auc", "log_loss", "brier"],
+                                                    ["Average precision", "Log loss", "Brier score"],
+                                                    ["normal", "inverse", "inverse"]):
+                column.metric(label, f"{chosen.iloc[0][key]:.5f}", f"{chosen.iloc[0][key]-fair.iloc[0][key]:+.5f} versus original refit", delta_color=direction)
+        st.dataframe(logistic_comparison, width="stretch", hide_index=True)
+        if not logistic_intervals.empty:
+            st.caption("Paired differences below are selected minus original. Higher is better for AUC/average precision; lower is better for losses. "
+                       "Intervals spanning zero do not establish a statistically clear improvement.")
+            st.dataframe(logistic_intervals, width="stretch", hide_index=True)
+    st.subheader("XGBoost: expected net contribution")
+    st.caption("The selected two-part model combines purchase probability with expected signed profit among purchasers. "
+               "The margin prediction is partially pooled toward the treatment's purchaser mean to reduce noise. "
+               "Lower RMSE and MAE are better; higher R² is better. Predictive improvement and targeting improvement are evaluated separately.")
+    if profit_comparison.empty:
+        st.info("Rebuild notebook 06 to display the profit model comparison.")
+    else:
+        pooled = profit_comparison[profit_comparison.scope.eq("pooled")]
+        original = pooled[pooled.model.eq("ORIGINAL_TLEARNER")]
+        chosen = pooled[pooled.model.eq(forecast_model)]
+        if not original.empty and not chosen.empty:
+            cols = st.columns(3)
+            for column, key, label, direction in zip(cols, ["rmse", "mae", "r2"], ["RMSE", "MAE", "R²"], ["inverse", "inverse", "normal"]):
+                column.metric(label, f"{chosen.iloc[0][key]:.4f}", f"{chosen.iloc[0][key]-original.iloc[0][key]:+.4f} versus original", delta_color=direction)
+        st.dataframe(profit_comparison, width="stretch", hide_index=True)
+        st.caption("A low R² still signals limited ability to explain individual profit variation, even when prediction errors improve.")
 
 with tab5:
     left, right = st.columns([1, 2])

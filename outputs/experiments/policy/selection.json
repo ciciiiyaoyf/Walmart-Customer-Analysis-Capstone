@@ -1,0 +1,75 @@
+{
+  "selected_policy": "RANDOM_FREE_SHIP",
+  "selected_config": null,
+  "selection_campaigns": [
+    "CP04",
+    "CP05",
+    "CP06"
+  ],
+  "selection_metric": "maximum pooled customer-weighted DR incremental NCM under common feasible constraints",
+  "candidate_count": 21,
+  "holdout_used_for_selection": false,
+  "audit_campaign": "CP07",
+  "audit_status": "retrospective: already inspected in prior project work",
+  "uncertainty": "Validation winner is selection-biased; intervals condition on fixed models and allocations.",
+  "grid": [
+    {
+      "segment": "membership",
+      "shrinkage": 20.0
+    },
+    {
+      "segment": "membership",
+      "shrinkage": 100.0
+    },
+    {
+      "segment": "membership",
+      "shrinkage": 300.0
+    },
+    {
+      "segment": "membership_tier",
+      "shrinkage": 20.0
+    },
+    {
+      "segment": "membership_tier",
+      "shrinkage": 100.0
+    },
+    {
+      "segment": "membership_tier",
+      "shrinkage": 300.0
+    },
+    {
+      "segment": "membership_cart",
+      "shrinkage": 20.0
+    },
+    {
+      "segment": "membership_cart",
+      "shrinkage": 100.0
+    },
+    {
+      "segment": "membership_cart",
+      "shrinkage": 300.0
+    },
+    {
+      "segment": "membership_history",
+      "shrinkage": 20.0
+    },
+    {
+      "segment": "membership_history",
+      "shrinkage": 100.0
+    },
+    {
+      "segment": "membership_history",
+      "shrinkage": 300.0
+    }
+  ],
+  "additional_profit_model": {
+    "family": "hurdle",
+    "purchase": "xgb",
+    "margin_weight": 0.5
+  },
+  "random_seed": 42,
+  "bootstrap_draws": 2000,
+  "OMP_NUM_THREADS": "unset",
+  "purchase_baseline_selection": "nested prior-campaign selection and refit of the same purchase-model procedure used for July",
+  "execution": "fresh spawn process per campaign; 300-second worker timeout; native OpenMP settings unchanged"
+}

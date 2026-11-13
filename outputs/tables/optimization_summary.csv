@@ -1,2 +1,2 @@
-solver_status,objective_total_expected_incremental_ncm,total_expected_ncm_optimized,total_expected_ncm_all_no_offer,expected_promo_spend,offered_customers,offered_share,pct20_share_among_offered,holdout_customers,n_NO_OFFER,n_PCT_10,n_PCT_20,n_FREE_SHIP,evaluation_basis
-Optimal,6408.91,51364.2,44955.29,1306.57,1665,0.5998,0.0,139,1111,212,0,1453,model_projection_not_independent_validation
+selected_policy,solver_status,objective_total_expected_incremental_ncm,total_expected_ncm_optimized,total_expected_ncm_all_no_offer,expected_promo_spend,offered_customers,offered_share,pct20_share_among_offered,holdout_customers,n_NO_OFFER,n_PCT_10,n_PCT_20,n_FREE_SHIP,evaluation_basis
+RANDOM_FREE_SHIP,Feasible baseline,1999.37,47027.88,45028.5,167.44,1665,0.5998,0.0,139,1111,0,0,1665,model_projection_not_independent_validation

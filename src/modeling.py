@@ -76,6 +76,13 @@ CANDIDATES = ["ORIGINAL_TLEARNER", "SHRUNK_TLEARNER", "ACTION_MEAN", "POOLED_XGB
 def fit_action_models(data, num, cat, params, method="ORIGINAL_TLEARNER", target="ncm_14d", original=None):
     """Only passed training rows are used; caller owns time split and label maturity."""
     if method not in CANDIDATES:
+        from src.profit_models import PROFIT_CANDIDATES, fit_profit_models
+        from src.policy_learning import POLICY_GRID, policy_name, fit_segment_models
+        if method in PROFIT_CANDIDATES:
+            return fit_profit_models(data, num, cat, method, target=target)
+        for config in POLICY_GRID:
+            if method == policy_name(config):
+                return fit_segment_models(data, **config, target=target)
         raise ValueError(f"Unknown method {method}")
     if set(data.offer_type.unique()) != set(ACTIONS):
         raise ValueError("Every action needs training support")

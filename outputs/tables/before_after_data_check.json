@@ -2,5 +2,16 @@
   "reference_commit": "ea950d0e9011ff0e105f5d93758ab54944a7c75f",
   "primary_ncm_unchanged": true,
   "feature_differences": [],
-  "explanation": "Compare original and corrected fitting in the same runtime; saved snapshot differences may reflect runtime/numerical differences."
+  "predictive_champion": "HURDLE_XGB_HALF",
+  "selected_allocation_policy": "RANDOM_FREE_SHIP",
+  "allocation_policy_separate_from_predictive_champion": true,
+  "factual_predictions_changed_rows": 1060,
+  "champion_improvement_over_same_runtime_refit": {
+    "rmse": 0.630938529041174,
+    "mae": 0.9305545084252742,
+    "r2_increase": 0.019697724324062915
+  },
+  "champion_rmse_percent_reduction": 0.9956516014453521,
+  "champion_mae_percent_reduction": 3.394803718727017,
+  "explanation": "Original and revised predictions use the same CP07 decisions and targets. Unchanged labels or features do not imply unchanged models. Compare the predictive champion with the original refit in this runtime; the allocation policy is selected and evaluated separately. Saved snapshot differences may reflect runtime/numerical differences."
 }

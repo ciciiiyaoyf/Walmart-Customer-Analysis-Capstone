@@ -1,0 +1,109 @@
+{
+  "selected_model": "HURDLE_XGB_HALF",
+  "config": {
+    "family": "hurdle",
+    "purchase": "xgb",
+    "margin_weight": 0.5
+  },
+  "development_campaigns": [
+    "CP04",
+    "CP05",
+    "CP06"
+  ],
+  "criterion": "minimum pooled out-of-time factual RMSE; MAE and stable name tie-break",
+  "candidate_registry": {
+    "ORIGINAL_TLEARNER": {
+      "family": "tlearner"
+    },
+    "POOLED_STUMPS": {
+      "family": "pooled",
+      "params": {
+        "n_estimators": 200,
+        "max_depth": 1,
+        "min_child_weight": 20,
+        "reg_lambda": 20
+      }
+    },
+    "POOLED_D2_100": {
+      "family": "pooled",
+      "params": {
+        "n_estimators": 100,
+        "max_depth": 2,
+        "min_child_weight": 20,
+        "reg_lambda": 20
+      }
+    },
+    "POOLED_D2_200": {
+      "family": "pooled",
+      "params": {
+        "n_estimators": 200,
+        "max_depth": 2,
+        "min_child_weight": 20,
+        "reg_lambda": 20
+      }
+    },
+    "POOLED_D2_STRONG": {
+      "family": "pooled",
+      "params": {
+        "n_estimators": 300,
+        "max_depth": 2,
+        "min_child_weight": 50,
+        "reg_lambda": 50
+      }
+    },
+    "POOLED_D3_STRONG": {
+      "family": "pooled",
+      "params": {
+        "n_estimators": 200,
+        "max_depth": 3,
+        "min_child_weight": 50,
+        "reg_lambda": 50
+      }
+    },
+    "SHARED_BASE_EFFECTS": {
+      "family": "shared",
+      "params": {
+        "n_estimators": 200,
+        "max_depth": 2,
+        "min_child_weight": 20,
+        "reg_lambda": 20
+      }
+    },
+    "HURDLE_XGB_MEAN": {
+      "family": "hurdle",
+      "purchase": "xgb",
+      "margin_weight": 0.0
+    },
+    "HURDLE_XGB_QUARTER": {
+      "family": "hurdle",
+      "purchase": "xgb",
+      "margin_weight": 0.25
+    },
+    "HURDLE_XGB_HALF": {
+      "family": "hurdle",
+      "purchase": "xgb",
+      "margin_weight": 0.5
+    },
+    "HURDLE_XGB_FULL": {
+      "family": "hurdle",
+      "purchase": "xgb",
+      "margin_weight": 1.0
+    },
+    "HURDLE_LOGIT_MEAN": {
+      "family": "hurdle",
+      "purchase": "logit",
+      "margin_weight": 0.0
+    },
+    "HURDLE_LOGIT_HALF": {
+      "family": "hurdle",
+      "purchase": "logit",
+      "margin_weight": 0.5
+    },
+    "HURDLE_LOGIT_FULL": {
+      "family": "hurdle",
+      "purchase": "logit",
+      "margin_weight": 1.0
+    }
+  },
+  "test_status": "CP07 retrospective; never used by this model-selection script"
+}
