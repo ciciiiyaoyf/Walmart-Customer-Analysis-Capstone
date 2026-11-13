@@ -3,7 +3,7 @@ import pandas as pd
 import pytest
 
 from src.modeling import ACTIONS, predict_actions
-from src.policy_learning import SegmentEffectRegressor, fit_segment_models, stochastic_free_ship_scores
+from src.policy_learning import SegmentEffectRegressor, fit_segment_models, stochastic_free_ship_scores, segment_keys
 
 
 def example():
@@ -73,3 +73,23 @@ def test_stochastic_score_matches_average_of_all_fixed_recipient_subsets():
     assert scores.offer_probability.iloc[0] == 0
     with pytest.raises(ValueError, match="nonbinding budget"):
         stochastic_free_ship_scores(data, mu, np.ones((4, 4)), ["a"], budget=1., max_offer_share=.5)
+
+
+def test_history_segmentation_separates_observed_zero_positive_and_unknown():
+    data = pd.DataFrame({'is_member': [0, 0, 0],
+                         'observed_orders_90d': pd.Series([0, 2, pd.NA], dtype='Float64'),
+                         'orders_90d': [9, 0, 0]})
+    assert segment_keys(data, 'membership_history').tolist() == [
+        '0|no_observed_recent_order', '0|observed_recent_order', '0|unknown_observed_history']
+    legacy = data.drop(columns='observed_orders_90d')
+    assert segment_keys(legacy, 'membership_history').tolist() == [
+        '0|observed_recent_order', '0|no_observed_recent_order', '0|no_observed_recent_order']
+
+
+def test_history_feature_rename_preserves_segment_model_predictions():
+    legacy = example().assign(orders_90d=lambda frame: frame.is_member * 2)
+    current = legacy.rename(columns={'orders_90d': 'observed_orders_90d'})
+    old = SegmentEffectRegressor(segment='membership_history').fit(legacy)
+    new = SegmentEffectRegressor(segment='membership_history').fit(current)
+    for action in ACTIONS:
+        np.testing.assert_array_equal(old.predict_action(legacy, action), new.predict_action(current, action))

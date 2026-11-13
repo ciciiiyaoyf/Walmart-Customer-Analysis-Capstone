@@ -4,6 +4,7 @@ import pandas as pd
 import pytest
 
 import src.propensity as purchase
+from src.features import OBSERVED_FEATURE_RENAMES
 
 
 NUM=['is_member','days_since_last_order','days_since_last_session','sessions_30d','gross_revenue_90d']
@@ -88,3 +89,65 @@ def test_too_little_history_is_explicit():
     assert config=={'mode':'raw','C':.01,'calibration':'none'} and folds.empty and summary.empty
     with pytest.raises(ValueError,match='at least three'):
         purchase.fit_purchase_model(data,NUM,CAT,dict(config,calibration='sigmoid'))
+
+
+@pytest.mark.parametrize('mode', purchase.MODES)
+def test_observed_schema_rename_preserves_numeric_design_and_predictions(mode):
+    legacy = example()
+    legacy['historical_return_rate'] = np.tile([0., .5, np.nan], 40)
+    legacy['avg_order_value_90d'] = legacy.gross_revenue_90d / 3
+    legacy['customer_tenure_days'] = np.arange(len(legacy)) + 10.
+    legacy['prior_emails_delivered'] = np.arange(len(legacy)) % 5
+    legacy['historical_open_rate'] = np.tile([0., .25, .5], 40)
+    num = NUM + ['historical_return_rate', 'avg_order_value_90d', 'customer_tenure_days',
+                 'prior_emails_delivered', 'historical_open_rate']
+    current = legacy.rename(columns=OBSERVED_FEATURE_RENAMES)
+    current_num = [OBSERVED_FEATURE_RENAMES.get(c, c) for c in num]
+    current_cat = [OBSERVED_FEATURE_RENAMES.get(c, c) for c in CAT]
+    config = {'mode': mode, 'C': .01}
+    old_model = purchase.fit_purchase_model(legacy, num, CAT, config)
+    new_model = purchase.fit_purchase_model(current, current_num, current_cat, config)
+    old_features = old_model.named_steps['features'].transform(legacy)
+    new_features = new_model.named_steps['features'].transform(current)
+    pd.testing.assert_frame_equal(old_features.rename(columns=OBSERVED_FEATURE_RENAMES), new_features)
+    old_design = old_model.named_steps['pre'].transform(old_features)
+    new_design = new_model.named_steps['pre'].transform(new_features)
+    np.testing.assert_array_equal(old_design, new_design)
+    np.testing.assert_allclose(old_model.predict_proba(legacy), new_model.predict_proba(current), rtol=0., atol=0.)
+
+
+def test_interactions_prefer_observed_columns_and_preserve_unknowns():
+    data = example().rename(columns=OBSERVED_FEATURE_RENAMES)
+    data['days_since_last_order'] = 0.
+    data['top_purchase_category_90d'] = data.top_category_viewed_30d
+    data['gross_revenue_90d'] = 1.e9
+    data.loc[0, 'observed_days_since_last_order'] = 60.
+    data.loc[0, 'observed_top_purchase_category_90d'] = 'Other'
+    data.loc[0, 'observed_gross_revenue_90d'] = np.nan
+    data.loc[0, 'is_member'] = 1
+    num = [OBSERVED_FEATURE_RENAMES.get(c, c) for c in NUM]
+    cat = [OBSERVED_FEATURE_RENAMES.get(c, c) for c in CAT]
+    out = purchase.PurchaseFeatures(num, cat, 'log_interactions').fit_transform(data)
+    assert out.loc[0, 'recent_purchase'] == 0.
+    assert out.loc[0, 'purchase_matches_browse'] == 0.
+    assert pd.isna(out.loc[0, 'member_spend'])
+
+
+def test_model_schema_excludes_numeric_coverage_context(monkeypatch, tmp_path):
+    import src.modeling as modeling
+    from src.features import FAMILIES, FEATURES, CATEGORICAL
+    schema = pd.DataFrame([
+        {'feature': feature, 'family': family,
+         'type': 'categorical' if feature in CATEGORICAL else 'numeric'}
+        for family, features in FAMILIES.items() for feature in features])
+    context = pd.DataFrame([
+        {'feature': 'complete_orders_90d', 'family': 'context', 'type': 'numeric'},
+        {'feature': 'orders_90d_coverage_status', 'family': 'context', 'type': 'categorical'},
+        {'feature': 'observed_organic_reference_orders', 'family': 'context', 'type': 'numeric'}])
+    pd.concat([context, schema], ignore_index=True).to_csv(tmp_path/'feature_schema.csv', index=False)
+    monkeypatch.setattr(modeling, 'TABLES', tmp_path)
+    num, cat = modeling.feature_lists()
+    assert num == [feature for feature in FEATURES if feature not in CATEGORICAL]
+    assert cat == [feature for feature in FEATURES if feature in CATEGORICAL]
+    assert len(num + cat) == 43
+    assert not set(context.feature) & set(num + cat)

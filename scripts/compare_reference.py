@@ -10,6 +10,7 @@ import pandas as pd
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
 from src.modeling import ACTIONS, feature_lists, fit_action_models, predict_actions, reg_metrics
+from src.features import OBSERVED_FEATURE_RENAMES
 
 REFERENCE="ea950d0e9011ff0e105f5d93758ab54944a7c75f"
 
@@ -33,22 +34,30 @@ def factual_predictions(predictions,expected):
 def main():
     git=["git","-c",f"safe.directory={ROOT.as_posix()}","-C",str(ROOT)]
     original=pd.read_parquet(io.BytesIO(subprocess.check_output(git+["show",f"{REFERENCE}:data/processed/historical_feature_outcome.parquet"])))
+    original_schema=pd.read_csv(io.BytesIO(subprocess.check_output(git+["show",f"{REFERENCE}:outputs/tables/feature_schema.csv"]))).query("family != 'context'")
+    original_num=original_schema.loc[original_schema.type.eq("numeric"), "feature"].tolist()
+    original_cat=original_schema.loc[original_schema.type.eq("categorical"), "feature"].tolist()
     current=pd.read_parquet(ROOT/"data/processed/historical_feature_outcome.parquet")
     num,cat=feature_lists(); cols=num+cat
+    legacy_names={new:old for old,new in OBSERVED_FEATURE_RENAMES.items()}
+    if ([legacy_names.get(c,c) for c in num] != original_num or
+            [legacy_names.get(c,c) for c in cat] != original_cat):
+        raise ValueError('Predictor types or order differ beyond the registered observation-scope rename')
     before=original.sort_values("assignment_id").reset_index(drop=True)
     after=current.sort_values("assignment_id").reset_index(drop=True)
     if not before.assignment_id.equals(after.assignment_id):
         raise ValueError('Original and current historical assignment sets differ')
     differences=[]
     for c in cols:
-        equal=(np.isclose(before[c].to_numpy(float),after[c].to_numpy(float),rtol=1e-12,atol=1e-12,equal_nan=True)
-               if c in num else before[c].fillna("__missing__").eq(after[c].fillna("__missing__")).to_numpy())
-        if not equal.all(): differences.append({"feature":c,"changed_rows":int((~equal).sum())})
+        original_column=legacy_names.get(c,c)
+        equal=(np.isclose(before[original_column].to_numpy(float),after[c].to_numpy(float),rtol=1e-12,atol=1e-12,equal_nan=True)
+               if c in num else before[original_column].fillna("__missing__").eq(after[c].fillna("__missing__")).to_numpy())
+        if not equal.all(): differences.append({"feature":c,"original_feature":original_column,"changed_rows":int((~equal).sum())})
     exp=original[original.assignment_source.eq("exploration")]
     train=exp[exp.campaign_id.lt("CP07")]
     test=exp[exp.campaign_id.eq("CP07")].sort_values("customer_id")
-    models=fit_action_models(train,num,cat,{"n_estimators":100,"max_depth":1,"learning_rate":0.03})
-    mu=predict_actions(models,test[cols])
+    models=fit_action_models(train,original_num,original_cat,{"n_estimators":100,"max_depth":1,"learning_rate":0.03})
+    mu=predict_actions(models,test[original_num+original_cat])
     factual=mu[np.arange(len(test)),[ACTIONS.index(a) for a in test.offer_type]]
     rerun=reg_metrics(test.ncm_14d,factual)
     tables=ROOT/"outputs/tables"
@@ -81,14 +90,17 @@ def main():
     improvement={k:float(rerun[k]-revised[k]) for k in ['rmse','mae']}
     improvement['r2_increase']=float(revised['r2']-rerun['r2'])
     check={"reference_commit":REFERENCE,"primary_ncm_unchanged":bool(np.allclose(before.ncm_14d,after.ncm_14d)),
-           "feature_differences":differences,'predictive_champion':champion,
+           "feature_differences":differences,
+           "feature_scope_renames":{old:new for old,new in OBSERVED_FEATURE_RENAMES.items() if new in cols},
+           "feature_values_unchanged_after_scope_mapping":not bool(differences),
+           'predictive_champion':champion,
            'selected_allocation_policy':selected_policy,
            'allocation_policy_separate_from_predictive_champion':bool(selected_policy!=champion),
            'factual_predictions_changed_rows':int((~np.isclose(factual,revised_factual,rtol=1e-10,atol=1e-10)).sum()),
            'champion_improvement_over_same_runtime_refit':improvement,
            'champion_rmse_percent_reduction':float(100*improvement['rmse']/rerun['rmse']),
            'champion_mae_percent_reduction':float(100*improvement['mae']/rerun['mae']),
-           "explanation":"Original and revised predictions use the same CP07 decisions and targets. Unchanged labels or features do not imply unchanged models. Compare the predictive champion with the original refit in this runtime; the allocation policy is selected and evaluated separately. Saved snapshot differences may reflect runtime/numerical differences."}
+           "explanation":"Original and revised predictions use the same CP07 decisions and targets. Feature comparisons map the current observed-data names to the original names; scope renames alone do not change predictor values. The original refit uses its own saved schema. Unchanged labels or feature values do not imply unchanged models. Compare the predictive champion with the original refit in this runtime; the allocation policy is selected and evaluated separately. Saved snapshot differences may reflect runtime/numerical differences."}
     (tables/"before_after_data_check.json").write_text(json.dumps(check,indent=2),encoding="utf-8")
     print(results.to_string(index=False))
 

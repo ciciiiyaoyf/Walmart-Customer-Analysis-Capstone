@@ -8,7 +8,7 @@ This project recommends `NO_OFFER`, `PCT_10`, `PCT_20`, or `FREE_SHIP` for each 
 
 The saved seed-42 allocation happens to produce a more favorable CP07 estimate: $12.74 versus no offer and a paired $8.77 improvement over the original, interval [$0.36, $18.33]. That result conditions on the chosen recipients. It must not be presented as a reliable gain across recipient randomizations or as observed July profit.
 
-The earlier corrections improved correctness and evaluation while retaining the original model, so unchanged predictions were expected then. This revision changes the fitted models and selected allocation. [The validation report](docs/VALIDATION_REPORT.md) separates these improvements and their limits.
+The earlier performance revision changed the fitted models and selected allocation. The subsequent transaction-coverage correction labels 19 purchase/return/product predictors as `observed_*` and adds separate coverage diagnostics. It preserves all 43 model input values, their order, and the original decision windows; it adds no predictive accuracy gain. The XGBoost improvements above come from the prior model revision. [The validation report](docs/VALIDATION_REPORT.md) separates these improvements and their limits.
 
 The revised pipeline separates three questions:
 
@@ -54,12 +54,12 @@ The final `policy_submission.csv` is also copied to `outputs/final/`. Its column
 | Step | Notebook | Responsibility |
 |---|---|---|
 | 01 | `01_data_validation` | Validate raw keys, links, timestamps, duplicates, and financial reconciliation; save clean tables |
-| 02 | `02_build_historical_features` | Build 43 pre-send features using the shared feature builder |
+| 02 | `02_build_historical_features` | Build 43 pre-send predictors plus separate transaction-coverage and historical-reference diagnostics |
 | 03 | `03_construct_14_day_outcomes` | Construct purchases, NCM, promotion cost, and explicit refund-timing outcomes |
 | 04 | `04_business_analysis` | Descriptive KPIs and exploration-only effects with customer-clustered uncertainty |
 | 05 | `05_logistic_propensity_model` | Temporally selected logistic purchase model with transformed features/interactions |
 | 06 | `06_tlearner_xgboost` | Two-part XGBoost comparison and separate feasible-policy selection |
-| 07 | `07_score_july_population` | Rebuild features at each July cutoff and score each action |
+| 07 | `07_score_july_population` | Rebuild features and coverage diagnostics at each July cutoff and score each action |
 | 08 | `08_estimate_promotion_cost` | Expected promotion cost per customer and action |
 | 09 | `09_milp_policy_optimization` | Reserve randomized controls and solve the constrained allocation |
 | 10 | `10_generate_outputs` | Submission, feasible baseline projections, policy audit, and measurement assignment |
@@ -72,7 +72,7 @@ An action model estimates `E[NCM | customer features, action]`. Estimated increm
 
 Squared-error fitting and RMSE are appropriate diagnostics for **expected dollar NCM**. MAE and R² supply additional descriptions; R² and RMSE give equivalent rankings on the same observations. These factual metrics do not establish that the policy chooses the best action. Matching average effects on the same rows used for fitting is only an in-sample plausibility check.
 
-The predictive search compares 14 fixed expected-NCM configurations on rolling CP04-CP06 validation, fitting prior campaigns only. Minimum pooled factual RMSE selects `HURDLE_XGB_HALF`: pooled XGBoost purchase probability times a signed purchaser-margin estimate, shrunk 50% toward each training arm's purchaser mean. It handles the roughly 88% nonbuyer zeros without discarding negative profit. The logistic search considers feature transforms, compact interactions, regularization, and nested probability calibration; selection favors average precision subject to log-loss/Brier safeguards.
+The predictive search compares 14 fixed expected-NCM configurations on rolling CP04-CP06 validation, fitting prior campaigns only. Minimum pooled factual RMSE selects `HURDLE_XGB_HALF`: pooled XGBoost purchase probability times a signed purchaser-margin estimate, shrunk 50% toward each training arm's purchaser mean. It handles the roughly 88% nonbuyer zeros without discarding negative profit. The logistic search considers feature transforms, compact interactions, regularization, and nested probability calibration; selection favors average precision subject to log-loss/Brier safeguards. The project requires a purchase-propensity baseline; logistic regression is the implemented choice, not a mandated algorithm.
 
 A separate development search compares 21 feasible allocation rules, including model optimizers, pooled/segment rules, and simple baselines. Maximum pooled development DR value selects `RANDOM_FREE_SHIP`. Prediction and allocation winners answer different questions. The previous rule that kept the original unless a multiple-comparison-adjusted interval excluded zero has been replaced by transparent validation ranking with uncertainty reported separately. All choices are saved before the CP07 retrospective comparison. See `outputs/experiments/` for the full search results.
 
@@ -92,7 +92,15 @@ The original CP07 unconstrained policy-value diagnostic is historical context, n
 
 ## July support and constraints
 
-July customers have no historical campaign assignments and no purchases in the available prior 90-day window. Several history features are completely missing. Imputation allows prediction; it does not establish that effects transfer to this population. Validation examines comparable customers and feature support, and reporting retains the limitation.
+All 2,776 July customers have **zero observed completed purchases in their recent 30/90-day windows**. Their complete recent purchase histories are **unknown**. The latest ordinary (`organic_preperiod`) transaction supplied is dated January 9, 2025; later campaign-attributed transactions belong to historical campaign customers. July customers have no historical campaign assignments. This explains the empty recent windows in the extract without establishing that July customers made no purchases. The last observed transaction is not a verified data-coverage endpoint.
+
+The decision cutoff remains **June 20, 2025 at 10:00**. The 90-day window starts **March 22 at 10:00**, and the 30-day window starts **May 21 at 10:00**; July scoring includes the cutoff timestamp. These calculations were already correct. Moving them backward would replace recent behavior with stale history. The 14-day outcome definition also remains unchanged.
+
+`src/coverage.py` checks explicit source coverage against each historical and July decision window. `config/transaction_coverage.json` has an empty `coverage_intervals` list because no complete-transaction source contract was supplied. Therefore `complete_orders_30d` and `complete_orders_90d` remain missing, while `observed_orders_30d` and `observed_orders_90d` retain the available-record counts. Add verified coverage only from a source contract with its scope, interval and availability time; a maximum transaction timestamp cannot certify it.
+
+The pipeline writes `historical_transaction_coverage.csv` and `july_transaction_coverage.csv` under `outputs/tables/`. The separate `historical_organic_reference_window.csv` and `july_organic_reference_window.csv` summarize observed organic purchases in **[October 12, 2024, January 10, 2025)**. In that stale reference interval, 256 July customers have 279 completed orders; 510 have at least one completed order anywhere in the supplied history. These audit tables are not new model predictors or replacements for recent windows, and the reference interval is not certified complete.
+
+Nineteen purchase, return and product predictors now carry an `observed_` prefix; the other predictor names, including `prior_offer_redemption_rate`, stay unchanged. The same 43 predictor values and ordering are retained for both training and scoring. Coverage and reference metadata are excluded from that predictor list. Imputation allows prediction but cannot establish transaction completeness or transfer of historical effects to July.
 
 The allocation uses one action per customer and enforces:
 

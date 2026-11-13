@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 
 from src.modeling import ACTIONS
+from src.features import feature_series
 
 
 SEGMENTS = ("membership", "membership_tier", "membership_cart", "membership_history")
@@ -27,7 +28,10 @@ def segment_keys(data, segment):
     elif segment == "membership_cart":
         other = pd.Series(np.where(data.cart_add_sessions_30d.fillna(0) > 0, "cart", "no_cart"), index=data.index)
     else:
-        other = pd.Series(np.where(data.orders_90d.fillna(0) > 0, "recent_order", "no_recent_order"), index=data.index)
+        observed = feature_series(data, "orders_90d")
+        other = pd.Series("unknown_observed_history", index=data.index)
+        other.loc[observed.eq(0)] = "no_observed_recent_order"
+        other.loc[observed.gt(0)] = "observed_recent_order"
     return member + "|" + other
 
 

@@ -1,6 +1,30 @@
-# Correction and performance validation - November 12, 2026
+# Correction and performance validation - November 13, 2026
 
-**The new code improves prediction modestly and selects a simple allocation; policy superiority remains uncertain.** Earlier corrections fixed accounting, timing, constraints, and misleading evaluation but retained the original model, so its predictions stayed unchanged. This revision changes the fitted models and selects allocation independently on development campaigns.
+**The prior performance revision improved prediction modestly; the current coverage correction prevents unsupported inactivity claims.** Policy superiority remains uncertain. Earlier corrections fixed accounting, timing, constraints, and misleading evaluation while retaining the original model. The subsequent performance revision changed the fitted models and selected allocation independently on development campaigns. The current correction preserves those numeric predictor values and properly labels their observation scope.
+
+## Transaction coverage correction
+
+The decision cutoff remains **2025-06-20 10:00:00**. The actual July 30-day window starts **2025-05-21 10:00:00** and the 90-day window starts **2025-03-22 10:00:00**, with an inclusive decision endpoint. The old date arithmetic was correct; shifting the recent window back to January would answer a different question.
+
+The supplied ordinary-order records end at an observed event on **2025-01-09 21:42:00**. Later supplied orders are campaign-attributed; July customers have no historical campaign assignments. All **2,776** July customers therefore have zero recent completed orders **in this extract**. No export contract or coverage watermark certifies that the extract contains every purchase. Thus `observed_orders_90d = 0` is accurate, while `complete_orders_90d` is **unknown for 2,776 customers**. Verified inactive customers: **0**. The same coverage limitation applies to historical windows.
+
+The code uses 19 explicit `observed_` predictor names, preserves all 43 predictor values/order, and exports per-decision requested windows, source counts, completeness status, and nullable complete-history counts. `config/transaction_coverage.json` contains no invented certified intervals. Complete counts become known only when explicit all-source coverage spans the entire requested window and was available by the decision time. Metadata is audit context, excluded from model predictors. Unknown counts never qualify as verified inactivity.
+
+Separately, **510** July customers have older observed completed purchases. The fixed organic reference interval **[2024-10-12, 2025-01-10)** contains **279** completed orders from **256** July customers. This reference is about **161.4 days stale** at the decision cutoff. It is an observed-only audit, not a replacement recent window, a completeness claim, or a new predictor.
+
+Numerical comparison against the preceding performance commit `54cf2ff`:
+
+| file | rows | changed_rows | max_absolute_numeric_change |
+| --- | --- | --- | --- |
+| outputs/tables/logistic_test_predictions.csv | 3800 | 0 | 0.0000 |
+| outputs/tables/xgboost_test_predictions.csv | 1060 | 0 | 0.0000 |
+| outputs/tables/july_xgboost_ncm_scores.csv | 2776 | 0 | 0.0000 |
+| outputs/tables/july_action_ncm_scores.csv | 2776 | 0 | 0.0000 |
+| policy_submission.csv | 2776 | 0 | 0.0000 |
+
+This semantic correction adds **no measured model-performance gain** when predictions are unchanged. Its benefit is a valid distinction between observed zero and unknown full history. The existing dataset cannot resolve whether missing ordinary purchases reflect the supplied extraction design or actual inactivity. Historical accuracy and July projections remain conditional on this limited source coverage. See `transaction_coverage_summary.json`, `coverage_revision_comparison.json`, and the historical/July coverage and reference CSVs.
+
+## Prior model-performance gains retained
 
 - Expected-NCM prediction: CP07 RMSE falls from **63.3694 to 62.7385** (1.00%), and MAE from **27.4111 to 26.4806** (3.39%).
 - Logistic regression: small improvements in average precision and probability quality; paired uncertainty includes zero improvement.
@@ -18,9 +42,9 @@ The reference is commit `ea950d0e9011ff0e105f5d93758ab54944a7c75f`. The original
 | original_refit_current_environment | profit_prediction | ORIGINAL_TLEARNER | 63.3694 | 27.4111 | 0.0059 |
 | corrected_predictive_champion | profit_prediction | HURDLE_XGB_HALF | 62.7385 | 26.4806 | 0.0256 |
 
-Predictive champion: **HURDLE_XGB_HALF**. Allocation policy: **RANDOM_FREE_SHIP**. These are different selections: prediction accuracy does not establish good treatment-effect ranking. Primary 14-day NCM unchanged: **True**. Changed feature columns: **0**. Factual CP07 predictions changed for **1060** assignments. Unchanged source data do not imply unchanged fitted predictions.
+Predictive champion: **HURDLE_XGB_HALF**. Allocation policy: **RANDOM_FREE_SHIP**. These are different selections: prediction accuracy does not establish good treatment-effect ranking. Primary 14-day NCM unchanged: **True**. Feature columns with changed numerical/category values: **0**; separately renamed observation-scope fields: **19**. Factual CP07 predictions changed for **1060** assignments. Unchanged source data do not imply unchanged fitted predictions.
 
-Compared with the immediately preceding reliability revision `1221dd1`, **1,403 of 2,776 July actions changed**. That is a concrete behavior change, not proof of higher realized profit. The comparison and input fingerprint are saved in `performance_revision_changes.json`.
+In the prior model-performance revision, compared with reliability revision `1221dd1`, **1,403 of 2,776 July actions changed**. That is a concrete behavior change, not proof of higher realized profit. The comparison and input fingerprint are saved in `performance_revision_changes.json`.
 
 ## XGBoost: why the change matters
 
@@ -94,13 +118,13 @@ Actual logging probabilities were not supplied. Primary estimates assume uncondi
 
 ## July support, accounting, and cost remain material limits
 
-July has no historical campaign exposure, no recent purchases in the available 90-day window, and seven entirely missing feature columns. Imputation permits scoring; it does not validate transport. Selected-policy cold-history subgroup evidence is:
+July has no historical campaign exposure, no observed recent orders in the supplied extract, and seven entirely missing predictor columns. Complete recent purchase history is unknown. Imputation permits scoring; it does not validate transport. Selected-policy subgroup evidence uses observed-history labels, not verified inactivity:
 
 | subgroup | n | matched_rows | dr_incremental_ncm_per_customer | ci_low | ci_high |
 | --- | --- | --- | --- | --- | --- |
-| cold_history | 93 | 23 | 13.4072 | -23.1388 | 69.1737 |
+| first_exposure_no_observed_recent_orders | 93 | 23 | 13.4072 | -23.1388 | 69.1737 |
 | unseen_customer | 83 | 22 | 15.3732 | -25.5895 | 78.6668 |
-| cold_and_unseen_customer | 83 | 22 | 15.3732 | -25.5895 | 78.6668 |
+| unseen_no_observed_recent_orders | 83 | 22 | 15.3732 | -25.5895 | 78.6668 |
 
 Subgroups are small and uncertain. Profile fields without effective-date history still require the explicit static-snapshot assumption.
 
@@ -135,10 +159,11 @@ Policy-validation campaigns execute in separate worker processes with deadlines 
 python -m pytest -q
 python run_pipeline.py --from-clean
 python scripts/compare_reference.py
+python scripts/validate_coverage_revision.py
 python scripts/build_validation_report.py
 python docs/build_walkthrough_pdf.py
 ```
 
-The recorded verification run passed **74 focused tests**. Focused checks cover signed-margin factorization, exploration-only fitting, serialization, assignment alignment, feature timing, refund accounting/maturity, DR/bootstrap logic, feasible allocation, and ITT analysis. Recorded execution scope: Earlier reliability revision executed notebooks 02-10 from committed cleaned snapshot. Performance revision executed notebooks 05-10 plus all tests; raw CSV validation not rerun. The commands above reproduce the checks; generating this report itself does not rerun them. The walkthrough PDF explains prediction and allocation separately.
+The recorded verification run passed **106 focused tests**. Focused checks cover signed-margin factorization, exploration-only fitting, serialization, assignment alignment, feature timing, observation-scope parity, explicit coverage contracts/unknown zeros, refund accounting/maturity, DR/bootstrap logic, feasible allocation, and ITT analysis. Recorded execution scope: Coverage revision executed notebooks 02-10 from the committed cleaned snapshot, rebuilt and reloaded model artifacts, ran all 106 tests, original-model comparison and exact predictor/output comparison against the prior performance revision. Raw CSV validation not rerun. The commands above reproduce the checks; generating this report itself does not rerun them. The walkthrough PDF explains prediction and allocation separately.
 
 Before launch, predefine the financial horizon, randomization, power, monitoring, and analysis. Compare **all** customers randomized to the POLICY arm, including those given NO_OFFER, with the randomized control arm using `src.measurement.estimate_policy_itt`. A 5% minimum control share satisfies the project constraint but does not guarantee adequate power.

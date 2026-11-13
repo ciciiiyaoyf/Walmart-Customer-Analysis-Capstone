@@ -136,7 +136,7 @@ def evaluate_campaign(history, campaign, num, cat, draws, candidate_names=None):
         allocations.append(allocation.assign(policy=name, evaluation_campaign=campaign))
     scores = pd.concat(scores, ignore_index=True)
     scores["unseen_customer"] = ~scores.customer_id.isin(train_all.customer_id)
-    scores["cold_and_unseen_customer"] = scores.cold_history & scores.unseen_customer
+    scores["unseen_no_observed_recent_orders"] = scores.first_exposure_no_observed_recent_orders & scores.unseen_customer
     stochastic = stochastic_free_ship_scores(test, nuisance, costs, kwargs["holdout_ids"], kwargs["budget"])
     summaries = pd.DataFrame(summaries)
     summaries["purchase_baseline_config"] = json.dumps(purchase_config, sort_keys=True)

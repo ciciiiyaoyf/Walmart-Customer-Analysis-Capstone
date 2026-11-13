@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "default_status": "unverified",
+  "coverage_intervals": [],
+  "explanation": "No source contract certifying complete transaction history was supplied. The last organic_preperiod event on 2025-01-09 is an observed transaction timestamp, not a verified coverage watermark. Campaign-attributed orders do not certify coverage of ordinary purchases. Consequently, recent observed counts may be zero while complete recent purchase history remains unknown.",
+  "interval_contract": {
+    "scope": "Only all_sources intervals can certify complete purchase history.",
+    "start": "Inclusive beginning of the explicitly certified transaction interval.",
+    "end": "End of the interval; exclusive unless end_inclusive is true.",
+    "available_as_of": "Timestamp when this certification was known; must be at or before the decision cutoff.",
+    "customer_ids": "Optional nonempty list of customer IDs; null or omitted applies globally."
+  },
+  "reference_window": {
+    "start": "2024-10-12T00:00:00",
+    "end_exclusive": "2025-01-10T00:00:00",
+    "source": "organic_preperiod",
+    "interpretation": "Optional observed historical baseline shared across cohorts, not a correction to the decision-relative 90-day window and not a claim of complete coverage."
+  }
+}

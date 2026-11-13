@@ -12,12 +12,15 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler, SplineTransformer
 from sklearn.metrics import roc_auc_score, average_precision_score, log_loss, brier_score_loss
+from src.features import OBSERVED_FEATURE_RENAMES, feature_series
 
 RATE_COLUMNS = {"is_member", "marketing_consent", "prior_offer_redemption_rate",
                 "historical_return_rate", "historical_open_rate", "historical_click_rate", "cart_add_rate_30d"}
-SPLINE_COLUMNS = ["customer_tenure_days", "days_since_last_order", "gross_revenue_90d",
+RATE_COLUMNS |= {OBSERVED_FEATURE_RENAMES.get(c, c) for c in RATE_COLUMNS}
+_LEGACY_SPLINE_COLUMNS = ["customer_tenure_days", "days_since_last_order", "gross_revenue_90d",
                   "sessions_30d", "days_since_last_session", "prior_emails_delivered",
                   "historical_open_rate", "avg_order_value_90d"]
+SPLINE_COLUMNS = [OBSERVED_FEATURE_RENAMES.get(c, c) for c in _LEGACY_SPLINE_COLUMNS]
 MODES = ("raw", "log", "log_interactions", "log_splines")
 PURCHASE_SELECTION_RULE = ("maximize mean out-of-time PR-AUC with log_loss <= original + .001 and "
                            "Brier <= original + .0005; ROC-AUC tie-break. Select nested temporal sigmoid "
@@ -62,16 +65,18 @@ class PurchaseFeatures(BaseEstimator, TransformerMixin):
             out["tier_membership"] = tier + "_" + member.astype(str)
             out["preferred_matches_browse"] = (X.preferred_category.notna() & X.top_category_viewed_30d.notna()
                                                 & X.preferred_category.eq(X.top_category_viewed_30d)).astype(float)
-            out["purchase_matches_browse"] = (X.top_purchase_category_90d.notna() & X.top_category_viewed_30d.notna()
-                                               & X.top_purchase_category_90d.eq(X.top_category_viewed_30d)).astype(float)
-            out["recent_purchase"] = X.days_since_last_order.le(30).astype(float)
+            purchase_category = feature_series(X, "top_purchase_category_90d")
+            out["purchase_matches_browse"] = (purchase_category.notna() & X.top_category_viewed_30d.notna()
+                                               & purchase_category.eq(X.top_category_viewed_30d)).astype(float)
+            out["recent_purchase"] = feature_series(X, "days_since_last_order").le(30).astype(float)
             out["recent_browse"] = X.days_since_last_session.le(7).astype(float)
             out["session_recency_intensity"] = out.sessions_30d / (1 + out.days_since_last_session)
             out["member_sessions"] = member * out.sessions_30d
-            out["member_spend"] = member * out.gross_revenue_90d
+            observed_spend = feature_series(out, "gross_revenue_90d")
+            out["member_spend"] = member * observed_spend
             for value in ("Gold", "Silver"):
                 out[f"{value.lower()}_sessions"] = tier.eq(value) * out.sessions_30d
-                out[f"{value.lower()}_spend"] = tier.eq(value) * out.gross_revenue_90d
+                out[f"{value.lower()}_spend"] = tier.eq(value) * observed_spend
         return out
 
 
@@ -94,7 +99,11 @@ def make_purchase_pipeline(num, cat, config):
         ("cat", Pipeline([("imp", SimpleImputer(strategy="constant", fill_value="Missing")),
                           ("ohe", OneHotEncoder(handle_unknown="ignore"))]), en_cat)]
     if mode == "log_splines":
-        cols = [c for c in SPLINE_COLUMNS if c in en_num]
+        # Preserve the original basis order for both the current observed-data
+        # schema and legacy snapshots used in like-for-like comparisons.
+        cols = [current if current in en_num else legacy
+                for legacy, current in zip(_LEGACY_SPLINE_COLUMNS, SPLINE_COLUMNS)
+                if current in en_num or legacy in en_num]
         transformations.append(("splines", Pipeline([
             ("imp", SimpleImputer(strategy="median", keep_empty_features=True)),
             ("spline", SplineTransformer(n_knots=4, degree=2, knots="uniform", extrapolation="constant", include_bias=False)),

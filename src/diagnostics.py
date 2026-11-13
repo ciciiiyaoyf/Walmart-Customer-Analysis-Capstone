@@ -6,6 +6,7 @@ or transportability to a new population.
 """
 import numpy as np
 import pandas as pd
+from src.features import feature_series
 
 
 def build_accrued_target(history, orders, returns, horizon_days=45, *, as_of_ts):
@@ -72,8 +73,25 @@ def build_accrued_target(history, orders, returns, horizon_days=45, *, as_of_ts)
 
 
 def cold_history_mask(data):
-    """Comparable first-exposure/inactive subgroup; unknown counts are not zero."""
-    return data.prior_emails_delivered.eq(0) & data.orders_90d.eq(0)
+    """First exposure with no observed recent orders, not verified inactivity.
+
+    Legacy order-column names are accepted only when their canonical observed
+    names are absent. Unknown counts never qualify as observed zero counts.
+    """
+    return (data.prior_emails_delivered.eq(0) & feature_series(data, "orders_90d").eq(0)).fillna(False)
+
+
+def verified_inactive_mask(data):
+    """Identify verified 90-day inactivity only with explicitly complete coverage.
+
+    Missing coverage metadata or an unknown complete-order count cannot establish
+    inactivity, even if the supplied extract contains no observed recent orders.
+    """
+    required = {"orders_90d_coverage_status", "complete_orders_90d"}
+    if not required.issubset(data.columns):
+        return pd.Series(False, index=data.index)
+    return (data.orders_90d_coverage_status.eq("verified_complete") &
+            data.complete_orders_90d.eq(0)).fillna(False)
 
 
 def support_report(train, scoring, numeric_features, categorical_features):

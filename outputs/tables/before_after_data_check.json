@@ -2,6 +2,28 @@
   "reference_commit": "ea950d0e9011ff0e105f5d93758ab54944a7c75f",
   "primary_ncm_unchanged": true,
   "feature_differences": [],
+  "feature_scope_renames": {
+    "prior_order_count": "observed_prior_order_count",
+    "orders_30d": "observed_orders_30d",
+    "orders_90d": "observed_orders_90d",
+    "days_since_last_order": "observed_days_since_last_order",
+    "gross_revenue_90d": "observed_gross_revenue_90d",
+    "net_revenue_90d": "observed_net_revenue_90d",
+    "avg_order_value_90d": "observed_avg_order_value_90d",
+    "discount_amount_90d": "observed_discount_amount_90d",
+    "cogs_90d": "observed_cogs_90d",
+    "shipping_revenue_90d": "observed_shipping_revenue_90d",
+    "shipping_cost_90d": "observed_shipping_cost_90d",
+    "historical_ncm_90d": "observed_historical_ncm_90d",
+    "returns_90d": "observed_returns_90d",
+    "refund_amount_90d": "observed_refund_amount_90d",
+    "historical_return_rate": "observed_historical_return_rate",
+    "units_purchased_90d": "observed_units_purchased_90d",
+    "distinct_products_90d": "observed_distinct_products_90d",
+    "distinct_categories_90d": "observed_distinct_categories_90d",
+    "top_purchase_category_90d": "observed_top_purchase_category_90d"
+  },
+  "feature_values_unchanged_after_scope_mapping": true,
   "predictive_champion": "HURDLE_XGB_HALF",
   "selected_allocation_policy": "RANDOM_FREE_SHIP",
   "allocation_policy_separate_from_predictive_champion": true,
@@ -13,5 +35,5 @@
   },
   "champion_rmse_percent_reduction": 0.9956516014453521,
   "champion_mae_percent_reduction": 3.394803718727017,
-  "explanation": "Original and revised predictions use the same CP07 decisions and targets. Unchanged labels or features do not imply unchanged models. Compare the predictive champion with the original refit in this runtime; the allocation policy is selected and evaluated separately. Saved snapshot differences may reflect runtime/numerical differences."
+  "explanation": "Original and revised predictions use the same CP07 decisions and targets. Feature comparisons map the current observed-data names to the original names; scope renames alone do not change predictor values. The original refit uses its own saved schema. Unchanged labels or feature values do not imply unchanged models. Compare the predictive champion with the original refit in this runtime; the allocation policy is selected and evaluated separately. Saved snapshot differences may reflect runtime/numerical differences."
 }

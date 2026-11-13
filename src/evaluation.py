@@ -14,6 +14,7 @@ import pandas as pd
 import joblib
 from src.modeling import (ACTIONS, COMMERCIAL, CANDIDATES, XGB_GRID, ConstantPredictor, fit_action_models,
                           predict_actions, make_xgb_pipe, make_propensity_pipe, reg_metrics)
+from src.diagnostics import cold_history_mask
 from src.policy import optimize_policy, build_baseline_policies, get_holdout
 
 JULY_SIZE = 2776
@@ -222,7 +223,7 @@ def evaluate_policy(data, allocation, mu, cost_mu, policy_name, split, draws=200
     individual["dr_no_offer_score"] = phi0
     individual["dr_incremental_score"] = delta
     individual["matched"] = observed == policy
-    individual["cold_history"] = data.prior_emails_delivered.eq(0).to_numpy() & data.orders_90d.eq(0).to_numpy()
+    individual["first_exposure_no_observed_recent_orders"] = cold_history_mask(data).to_numpy()
     return summary, individual
 
 
@@ -321,7 +322,7 @@ def evaluate_fold(history, campaign, num, cat, params, draws=2000):
         assignments.append(allocation.assign(policy=name, evaluation_campaign=campaign))
     individual = pd.concat(individuals, ignore_index=True)
     individual["unseen_customer"] = ~individual.customer_id.isin(train_all.customer_id)
-    individual["cold_and_unseen_customer"] = individual.cold_history & individual.unseen_customer
+    individual["unseen_no_observed_recent_orders"] = individual.first_exposure_no_observed_recent_orders & individual.unseen_customer
     summary_table=pd.DataFrame(summaries)
     summary_table["inner_validation_campaign"]=inner_validation
     summary_table["fold_parameters"]=json.dumps(params,sort_keys=True)
@@ -391,7 +392,7 @@ def run_policy_validation(history, num, cat, params, tables, models_dir, draws=2
         pairs.append({"policy":selected,"reference":ref,"paired_dr_difference":m,"ci_low":lo,"ci_high":hi})
     pd.DataFrame(pairs).to_csv(tables/"heldout_policy_paired_comparisons.csv",index=False)
     subgroup=[]
-    for group in ["cold_history","unseen_customer","cold_and_unseen_customer"]:
+    for group in ["first_exposure_no_observed_recent_orders","unseen_customer","unseen_no_observed_recent_orders"]:
         for policy,s in test["scores"].groupby("policy"):
             included = s[group].to_numpy(bool)
             m,lo,hi = cluster_dr_interval(s, included=included, draws=draws) if included.any() else (np.nan,np.nan,np.nan)

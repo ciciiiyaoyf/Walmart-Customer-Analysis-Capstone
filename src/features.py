@@ -2,13 +2,17 @@
 
 Cutoff rule: historical rows use events with ts < send_ts (inclusive=False);
 July scoring uses ts <= policy_as_of_ts (inclusive=True).
+
+Purchase, return and product history describe events observed in the supplied
+extract. Their ``observed_`` names do not claim complete transaction coverage:
+an observed zero is not evidence that the customer made no purchases.
 """
 import numpy as np
 import pandas as pd
 
 PROFILE_CAT = ["region", "acquisition_channel", "customer_tier", "preferred_category", "shipping_zone"]
 PROFILE_NUM = ["customer_tenure_days", "is_member", "marketing_consent"]
-FAMILIES = {
+LEGACY_FAMILIES = {
     "profile": PROFILE_NUM + PROFILE_CAT,
     "purchase": ["prior_order_count", "orders_30d", "orders_90d", "days_since_last_order", "gross_revenue_90d",
                  "net_revenue_90d", "avg_order_value_90d", "discount_amount_90d", "cogs_90d", "shipping_revenue_90d",
@@ -20,8 +24,36 @@ FAMILIES = {
               "historical_click_rate", "days_since_last_email_open", "days_since_last_email_click"],
     "product": ["units_purchased_90d", "distinct_products_90d", "distinct_categories_90d", "top_purchase_category_90d"],
 }
-CATEGORICAL = PROFILE_CAT + ["top_category_viewed_30d", "top_purchase_category_90d"]
+LEGACY_FEATURES = [f for fam in LEGACY_FAMILIES.values() for f in fam]
+LEGACY_CATEGORICAL = PROFILE_CAT + ["top_category_viewed_30d", "top_purchase_category_90d"]
+OBSERVED_FEATURE_RENAMES = {
+    feature: "observed_" + feature
+    for family in ["purchase", "returns", "product"]
+    for feature in LEGACY_FAMILIES[family]
+    if feature != "prior_offer_redemption_rate"
+}
+FAMILIES = {
+    family: [OBSERVED_FEATURE_RENAMES.get(feature, feature) for feature in features]
+    for family, features in LEGACY_FAMILIES.items()
+}
+CATEGORICAL = [OBSERVED_FEATURE_RENAMES.get(feature, feature) for feature in LEGACY_CATEGORICAL]
 FEATURES = [f for fam in FAMILIES.values() for f in fam]
+
+
+def observed_feature_name(legacy):
+    """Return the extract-observed name, or the original name for other features."""
+    return OBSERVED_FEATURE_RENAMES.get(legacy, legacy)
+
+
+def feature_series(data, legacy):
+    """Read the observed predictor, with schema-only compatibility for old data.
+
+    The canonical column always wins when present, even when its values are
+    missing. A legacy column may instead represent a coverage-qualified count,
+    so it must not be used to fill missing observed values (or vice versa).
+    """
+    observed = observed_feature_name(legacy)
+    return data[observed] if observed in data.columns else data[legacy]
 
 
 def _prior(spine, ev, ts, key, cut, inclusive, audit, family):
@@ -46,7 +78,12 @@ def _div(a, b):
 
 def build_features(spine, t, key="assignment_id", cut="send_ts", inclusive=False):
     """spine: one row per decision (key, customer_id, cut). t: dict of Step 01 clean tables.
-    Returns (features DataFrame with one row per key, audit dict of max event_ts - cutoff per family)."""
+    Returns (features DataFrame with one row per key, audit dict of max event_ts - cutoff per family).
+
+    Counts and sums of extract-observed transactions are zero when no supplied
+    events fall in the original decision-relative window. Coverage-qualified
+    counts and coverage metadata are separate from these 43 model predictors.
+    """
     audit = {}
     s = spine[[key, "customer_id", cut]].copy()
     out = s.set_index(key)
@@ -138,4 +175,5 @@ def build_features(spine, t, key="assignment_id", cut="send_ts", inclusive=False
     out["cart_add_rate_30d"] = _div(out.cart_add_sessions_30d, out.sessions_30d)
     out["historical_open_rate"] = _div(out.prior_email_opens, out.prior_emails_delivered)
     out["historical_click_rate"] = _div(out.prior_email_clicks, out.prior_emails_delivered)
-    return out.reset_index()[[key, "customer_id", cut] + FEATURES], audit
+    result = out.reset_index()[[key, "customer_id", cut] + LEGACY_FEATURES]
+    return result.rename(columns=OBSERVED_FEATURE_RENAMES), audit

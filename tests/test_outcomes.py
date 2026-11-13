@@ -74,9 +74,9 @@ def test_multiple_known_refunds_do_not_duplicate_order_features():
                           "send_ts": pd.to_datetime(["2025-02-01"])})
     features, _ = build_features(spine, tables)
     row = features.iloc[0]
-    assert row.prior_order_count == 1
-    assert row.orders_90d == 1
-    assert row.net_revenue_90d == 100.
-    assert row.historical_ncm_90d == 25.
-    assert row.refund_amount_90d == 30.
-    assert row.units_purchased_90d == 2
+    assert row.observed_prior_order_count == 1
+    assert row.observed_orders_90d == 1
+    assert row.observed_net_revenue_90d == 100.
+    assert row.observed_historical_ncm_90d == 25.
+    assert row.observed_refund_amount_90d == 30.
+    assert row.observed_units_purchased_90d == 2

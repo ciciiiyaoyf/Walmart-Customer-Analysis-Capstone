@@ -1,4 +1,4 @@
-assignment_id,customer_id,campaign_id,policy,recommended_action,outcome,observed_action,direct_component,residual_component,dr_score,dr_no_offer_score,dr_incremental_score,matched,cold_history,unseen_customer,cold_and_unseen_customer
+assignment_id,customer_id,campaign_id,policy,recommended_action,outcome,observed_action,direct_component,residual_component,dr_score,dr_no_offer_score,dr_incremental_score,matched,first_exposure_no_observed_recent_orders,unseen_customer,unseen_no_observed_recent_orders
 A000025400,100024,CP07,ORIGINAL_TLEARNER,FREE_SHIP,117.47000000000004,FREE_SHIP,3.754049301147461,94.35287544250492,399.1097860952966,19.363075256347656,379.74671083894896,True,False,False,False
 A000026409,100028,CP07,ORIGINAL_TLEARNER,FREE_SHIP,0.0,NO_OFFER,8.62384033203125,10.832723617553713,19.45656394958496,-33.84699247041101,53.30355641999597,False,False,False,False
 A000026457,100057,CP07,ORIGINAL_TLEARNER,NO_OFFER,91.08,PCT_20,0.0,0.0,21.34891128540039,21.34891128540039,0.0,False,True,True,True

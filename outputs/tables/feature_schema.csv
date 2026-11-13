@@ -1,51 +1,67 @@
-feature,family,type
-assignment_id,context,id/context (not a predictor)
-customer_id,context,id/context (not a predictor)
-campaign_id,context,id/context (not a predictor)
-send_ts,context,id/context (not a predictor)
-assignment_source,context,id/context (not a predictor)
-offer_type,context,id/context (not a predictor)
-email_delivered,context,id/context (not a predictor)
-customer_tenure_days,profile,numeric
-is_member,profile,numeric
-marketing_consent,profile,numeric
-region,profile,categorical
-acquisition_channel,profile,categorical
-customer_tier,profile,categorical
-preferred_category,profile,categorical
-shipping_zone,profile,categorical
-prior_order_count,purchase,numeric
-orders_30d,purchase,numeric
-orders_90d,purchase,numeric
-days_since_last_order,purchase,numeric
-gross_revenue_90d,purchase,numeric
-net_revenue_90d,purchase,numeric
-avg_order_value_90d,purchase,numeric
-discount_amount_90d,purchase,numeric
-cogs_90d,purchase,numeric
-shipping_revenue_90d,purchase,numeric
-shipping_cost_90d,purchase,numeric
-historical_ncm_90d,purchase,numeric
-prior_offer_redemption_rate,purchase,numeric
-returns_90d,returns,numeric
-refund_amount_90d,returns,numeric
-historical_return_rate,returns,numeric
-sessions_7d,web,numeric
-sessions_30d,web,numeric
-pages_viewed_30d,web,numeric
-avg_pages_per_session_30d,web,numeric
-cart_add_sessions_30d,web,numeric
-cart_add_rate_30d,web,numeric
-days_since_last_session,web,numeric
-top_category_viewed_30d,web,categorical
-prior_emails_delivered,email,numeric
-prior_email_opens,email,numeric
-prior_email_clicks,email,numeric
-historical_open_rate,email,numeric
-historical_click_rate,email,numeric
-days_since_last_email_open,email,numeric
-days_since_last_email_click,email,numeric
-units_purchased_90d,product,numeric
-distinct_products_90d,product,numeric
-distinct_categories_90d,product,numeric
-top_purchase_category_90d,product,categorical
+feature,family,type,observation_scope,complete_history_requirement
+assignment_id,context,id/context (not a predictor),see_feature_definition,
+customer_id,context,id/context (not a predictor),see_feature_definition,
+campaign_id,context,id/context (not a predictor),see_feature_definition,
+send_ts,context,id/context (not a predictor),see_feature_definition,
+assignment_source,context,id/context (not a predictor),see_feature_definition,
+offer_type,context,id/context (not a predictor),see_feature_definition,
+email_delivered,context,id/context (not a predictor),see_feature_definition,
+window_end_inclusive,context,id/context (not a predictor),audit_context_not_predictor,
+window_30d_start,context,id/context (not a predictor),audit_context_not_predictor,
+window_30d_end,context,id/context (not a predictor),audit_context_not_predictor,
+observed_organic_orders_30d,context,id/context (not a predictor),observed_extract_only,Do not interpret observed zeros as verified inactivity; consult transaction coverage output.
+observed_campaign_orders_30d,context,id/context (not a predictor),observed_extract_only,Do not interpret observed zeros as verified inactivity; consult transaction coverage output.
+orders_30d_coverage_status,context,id/context (not a predictor),audit_context_not_predictor,
+complete_orders_30d,context,id/context (not a predictor),audit_context_not_predictor,
+window_90d_start,context,id/context (not a predictor),audit_context_not_predictor,
+window_90d_end,context,id/context (not a predictor),audit_context_not_predictor,
+observed_organic_orders_90d,context,id/context (not a predictor),observed_extract_only,Do not interpret observed zeros as verified inactivity; consult transaction coverage output.
+observed_campaign_orders_90d,context,id/context (not a predictor),observed_extract_only,Do not interpret observed zeros as verified inactivity; consult transaction coverage output.
+orders_90d_coverage_status,context,id/context (not a predictor),audit_context_not_predictor,
+complete_orders_90d,context,id/context (not a predictor),audit_context_not_predictor,
+latest_observed_organic_order_ts,context,id/context (not a predictor),audit_context_not_predictor,
+source_latest_observed_organic_order_ts,context,id/context (not a predictor),audit_context_not_predictor,
+coverage_interpretation,context,id/context (not a predictor),audit_context_not_predictor,
+customer_tenure_days,profile,numeric,see_feature_definition,
+is_member,profile,numeric,see_feature_definition,
+marketing_consent,profile,numeric,see_feature_definition,
+region,profile,categorical,see_feature_definition,
+acquisition_channel,profile,categorical,see_feature_definition,
+customer_tier,profile,categorical,see_feature_definition,
+preferred_category,profile,categorical,see_feature_definition,
+shipping_zone,profile,categorical,see_feature_definition,
+observed_prior_order_count,purchase,numeric,observed_extract_only,Do not interpret observed zeros as verified inactivity; consult transaction coverage output.
+observed_orders_30d,purchase,numeric,observed_extract_only,Do not interpret observed zeros as verified inactivity; consult transaction coverage output.
+observed_orders_90d,purchase,numeric,observed_extract_only,Do not interpret observed zeros as verified inactivity; consult transaction coverage output.
+observed_days_since_last_order,purchase,numeric,observed_extract_only,Do not interpret observed zeros as verified inactivity; consult transaction coverage output.
+observed_gross_revenue_90d,purchase,numeric,observed_extract_only,Do not interpret observed zeros as verified inactivity; consult transaction coverage output.
+observed_net_revenue_90d,purchase,numeric,observed_extract_only,Do not interpret observed zeros as verified inactivity; consult transaction coverage output.
+observed_avg_order_value_90d,purchase,numeric,observed_extract_only,Do not interpret observed zeros as verified inactivity; consult transaction coverage output.
+observed_discount_amount_90d,purchase,numeric,observed_extract_only,Do not interpret observed zeros as verified inactivity; consult transaction coverage output.
+observed_cogs_90d,purchase,numeric,observed_extract_only,Do not interpret observed zeros as verified inactivity; consult transaction coverage output.
+observed_shipping_revenue_90d,purchase,numeric,observed_extract_only,Do not interpret observed zeros as verified inactivity; consult transaction coverage output.
+observed_shipping_cost_90d,purchase,numeric,observed_extract_only,Do not interpret observed zeros as verified inactivity; consult transaction coverage output.
+observed_historical_ncm_90d,purchase,numeric,observed_extract_only,Do not interpret observed zeros as verified inactivity; consult transaction coverage output.
+prior_offer_redemption_rate,purchase,numeric,see_feature_definition,
+observed_returns_90d,returns,numeric,observed_extract_only,Do not interpret observed zeros as verified inactivity; consult transaction coverage output.
+observed_refund_amount_90d,returns,numeric,observed_extract_only,Do not interpret observed zeros as verified inactivity; consult transaction coverage output.
+observed_historical_return_rate,returns,numeric,observed_extract_only,Do not interpret observed zeros as verified inactivity; consult transaction coverage output.
+sessions_7d,web,numeric,see_feature_definition,
+sessions_30d,web,numeric,see_feature_definition,
+pages_viewed_30d,web,numeric,see_feature_definition,
+avg_pages_per_session_30d,web,numeric,see_feature_definition,
+cart_add_sessions_30d,web,numeric,see_feature_definition,
+cart_add_rate_30d,web,numeric,see_feature_definition,
+days_since_last_session,web,numeric,see_feature_definition,
+top_category_viewed_30d,web,categorical,see_feature_definition,
+prior_emails_delivered,email,numeric,see_feature_definition,
+prior_email_opens,email,numeric,see_feature_definition,
+prior_email_clicks,email,numeric,see_feature_definition,
+historical_open_rate,email,numeric,see_feature_definition,
+historical_click_rate,email,numeric,see_feature_definition,
+days_since_last_email_open,email,numeric,see_feature_definition,
+days_since_last_email_click,email,numeric,see_feature_definition,
+observed_units_purchased_90d,product,numeric,observed_extract_only,Do not interpret observed zeros as verified inactivity; consult transaction coverage output.
+observed_distinct_products_90d,product,numeric,observed_extract_only,Do not interpret observed zeros as verified inactivity; consult transaction coverage output.
+observed_distinct_categories_90d,product,numeric,observed_extract_only,Do not interpret observed zeros as verified inactivity; consult transaction coverage output.
+observed_top_purchase_category_90d,product,categorical,observed_extract_only,Do not interpret observed zeros as verified inactivity; consult transaction coverage output.

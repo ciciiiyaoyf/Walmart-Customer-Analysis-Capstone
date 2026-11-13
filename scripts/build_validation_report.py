@@ -51,14 +51,34 @@ def main():
     costs=pd.read_csv(T/'promo_cost_metrics.csv').query("split == 'test_CP07'")
     data_check=json.loads((T/'before_after_data_check.json').read_text())
     behavior_change=json.loads((T/'performance_revision_changes.json').read_text())
+    coverage=json.loads((T/'transaction_coverage_summary.json').read_text())
+    coverage_change=json.loads((T/'coverage_revision_comparison.json').read_text())
     environment=json.loads((ROOT/'outputs/validation_environment.json').read_text())
     test_evidence=(f"The recorded verification run passed **{environment['focused_tests_passed']} focused tests**."
                    if 'focused_tests_passed' in environment else 'The completed test run is recorded with the revision.')
     cold_text=(table(cold[['subgroup','n','matched_rows','dr_incremental_ncm_per_customer','ci_low','ci_high']])
                if len(cold) else 'No selected-policy subgroup estimate was saved; July transport remains unvalidated.')
-    text=f'''# Correction and performance validation - November 12, 2026
+    text=f'''# Correction and performance validation - November 13, 2026
 
-**The new code improves prediction modestly and selects a simple allocation; policy superiority remains uncertain.** Earlier corrections fixed accounting, timing, constraints, and misleading evaluation but retained the original model, so its predictions stayed unchanged. This revision changes the fitted models and selects allocation independently on development campaigns.
+**The prior performance revision improved prediction modestly; the current coverage correction prevents unsupported inactivity claims.** Policy superiority remains uncertain. Earlier corrections fixed accounting, timing, constraints, and misleading evaluation while retaining the original model. The subsequent performance revision changed the fitted models and selected allocation independently on development campaigns. The current correction preserves those numeric predictor values and properly labels their observation scope.
+
+## Transaction coverage correction
+
+The decision cutoff remains **{coverage['policy_as_of_ts']}**. The actual July 30-day window starts **{coverage['window_30d_start']}** and the 90-day window starts **{coverage['window_90d_start']}**, with an inclusive decision endpoint. The old date arithmetic was correct; shifting the recent window back to January would answer a different question.
+
+The supplied ordinary-order records end at an observed event on **{coverage['source_latest_observed_organic_order_ts']}**. Later supplied orders are campaign-attributed; July customers have no historical campaign assignments. All **{coverage['july_customers']:,}** July customers therefore have zero recent completed orders **in this extract**. No export contract or coverage watermark certifies that the extract contains every purchase. Thus `observed_orders_90d = 0` is accurate, while `complete_orders_90d` is **unknown for {coverage['july_complete_90d_counts_unknown']:,} customers**. Verified inactive customers: **{coverage['july_verified_inactive_customers']}**. The same coverage limitation applies to historical windows.
+
+The code uses 19 explicit `observed_` predictor names, preserves all 43 predictor values/order, and exports per-decision requested windows, source counts, completeness status, and nullable complete-history counts. `config/transaction_coverage.json` contains no invented certified intervals. Complete counts become known only when explicit all-source coverage spans the entire requested window and was available by the decision time. Metadata is audit context, excluded from model predictors. Unknown counts never qualify as verified inactivity.
+
+Separately, **{coverage['july_customers_with_any_observed_completed_order']}** July customers have older observed completed purchases. The fixed organic reference interval **[{coverage['reference_window_start']}, {coverage['reference_window_end_exclusive']})** contains **{coverage['reference_observed_completed_orders']}** completed orders from **{coverage['reference_customers_with_observed_completed_order']}** July customers. This reference is about **{coverage['reference_age_days_at_july_cutoff']:.1f} days stale** at the decision cutoff. It is an observed-only audit, not a replacement recent window, a completeness claim, or a new predictor.
+
+Numerical comparison against the preceding performance commit `{coverage_change['comparison_commit'][:7]}`:
+
+{table(pd.DataFrame(coverage_change['output_checks'])[['file','rows','changed_rows','max_absolute_numeric_change']])}
+
+This semantic correction adds **no measured model-performance gain** when predictions are unchanged. Its benefit is a valid distinction between observed zero and unknown full history. The existing dataset cannot resolve whether missing ordinary purchases reflect the supplied extraction design or actual inactivity. Historical accuracy and July projections remain conditional on this limited source coverage. See `transaction_coverage_summary.json`, `coverage_revision_comparison.json`, and the historical/July coverage and reference CSVs.
+
+## Prior model-performance gains retained
 
 - Expected-NCM prediction: CP07 RMSE falls from **{old.rmse:.4f} to {new.rmse:.4f}** ({100*(old.rmse-new.rmse)/old.rmse:.2f}%), and MAE from **{old.mae:.4f} to {new.mae:.4f}** ({100*(old.mae-new.mae)/old.mae:.2f}%).
 - Logistic regression: small improvements in average precision and probability quality; paired uncertainty includes zero improvement.
@@ -72,9 +92,9 @@ The reference is commit `ea950d0e9011ff0e105f5d93758ab54944a7c75f`. The original
 
 {table(compare)}
 
-Predictive champion: **{champion}**. Allocation policy: **{selected}**. These are different selections: prediction accuracy does not establish good treatment-effect ranking. Primary 14-day NCM unchanged: **{data_check['primary_ncm_unchanged']}**. Changed feature columns: **{len(data_check['feature_differences'])}**. Factual CP07 predictions changed for **{data_check['factual_predictions_changed_rows']}** assignments. Unchanged source data do not imply unchanged fitted predictions.
+Predictive champion: **{champion}**. Allocation policy: **{selected}**. These are different selections: prediction accuracy does not establish good treatment-effect ranking. Primary 14-day NCM unchanged: **{data_check['primary_ncm_unchanged']}**. Feature columns with changed numerical/category values: **{len(data_check['feature_differences'])}**; separately renamed observation-scope fields: **{len(data_check.get('feature_scope_renames', {}))}**. Factual CP07 predictions changed for **{data_check['factual_predictions_changed_rows']}** assignments. Unchanged source data do not imply unchanged fitted predictions.
 
-Compared with the immediately preceding reliability revision `{behavior_change['comparison_commit'][:7]}`, **{behavior_change['july_actions_changed']:,} of {behavior_change['july_customers']:,} July actions changed**. That is a concrete behavior change, not proof of higher realized profit. The comparison and input fingerprint are saved in `performance_revision_changes.json`.
+In the prior model-performance revision, compared with reliability revision `{behavior_change['comparison_commit'][:7]}`, **{behavior_change['july_actions_changed']:,} of {behavior_change['july_customers']:,} July actions changed**. That is a concrete behavior change, not proof of higher realized profit. The comparison and input fingerprint are saved in `performance_revision_changes.json`.
 
 ## XGBoost: why the change matters
 
@@ -116,7 +136,7 @@ Actual logging probabilities were not supplied. Primary estimates assume uncondi
 
 ## July support, accounting, and cost remain material limits
 
-July has no historical campaign exposure, no recent purchases in the available 90-day window, and seven entirely missing feature columns. Imputation permits scoring; it does not validate transport. Selected-policy cold-history subgroup evidence is:
+July has no historical campaign exposure, no observed recent orders in the supplied extract, and seven entirely missing predictor columns. Complete recent purchase history is unknown. Imputation permits scoring; it does not validate transport. Selected-policy subgroup evidence uses observed-history labels, not verified inactivity:
 
 {cold_text}
 
@@ -146,11 +166,12 @@ Policy-validation campaigns execute in separate worker processes with deadlines 
 python -m pytest -q
 python run_pipeline.py --from-clean
 python scripts/compare_reference.py
+python scripts/validate_coverage_revision.py
 python scripts/build_validation_report.py
 python docs/build_walkthrough_pdf.py
 ```
 
-{test_evidence} Focused checks cover signed-margin factorization, exploration-only fitting, serialization, assignment alignment, feature timing, refund accounting/maturity, DR/bootstrap logic, feasible allocation, and ITT analysis. Recorded execution scope: {environment['execution']} The commands above reproduce the checks; generating this report itself does not rerun them. The walkthrough PDF explains prediction and allocation separately.
+{test_evidence} Focused checks cover signed-margin factorization, exploration-only fitting, serialization, assignment alignment, feature timing, observation-scope parity, explicit coverage contracts/unknown zeros, refund accounting/maturity, DR/bootstrap logic, feasible allocation, and ITT analysis. Recorded execution scope: {environment['execution']} The commands above reproduce the checks; generating this report itself does not rerun them. The walkthrough PDF explains prediction and allocation separately.
 
 Before launch, predefine the financial horizon, randomization, power, monitoring, and analysis. Compare **all** customers randomized to the POLICY arm, including those given NO_OFFER, with the randomized control arm using `src.measurement.estimate_policy_itt`. A 5% minimum control share satisfies the project constraint but does not guarantee adequate power.
 '''

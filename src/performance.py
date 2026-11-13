@@ -53,10 +53,10 @@ def run_performance_validation(history, num, cat, tables, models_dir, draws=2000
     test = history[history.campaign_id.eq("CP07") & history.assignment_source.eq("exploration")]
     seen = set(history.loc[history.campaign_id.lt("CP07"), "customer_id"])
     scores["unseen_customer"] = ~scores.customer_id.isin(seen)
-    scores["cold_and_unseen_customer"] = scores.cold_history & scores.unseen_customer
+    scores["unseen_no_observed_recent_orders"] = scores.first_exposure_no_observed_recent_orders & scores.unseen_customer
     scores.to_csv(tables / "heldout_policy_dr_scores.csv", index=False)
     subgroups = []
-    for group in ["cold_history", "unseen_customer", "cold_and_unseen_customer"]:
+    for group in ["first_exposure_no_observed_recent_orders", "unseen_customer", "unseen_no_observed_recent_orders"]:
         for name, part in scores.groupby("policy"):
             included = part[group].to_numpy(bool)
             point, low, high = cluster_dr_interval(part, included=included, draws=draws) if included.any() else (np.nan,)*3

@@ -48,6 +48,8 @@ logistic_comparison = table("logistic_cp07_comparison.csv", optional=True)
 logistic_intervals = table("logistic_cp07_paired_bootstrap.csv", optional=True)
 profit_comparison = table("model_comparison_cp07.csv", optional=True)
 milp = table("milp_policy_detailed.csv", optional=True)
+july_coverage = table("july_transaction_coverage.csv", optional=True)
+july_reference = table("july_organic_reference_window.csv", optional=True)
 
 spend = pol.estimated_promo_cost.sum()
 incremental = pol.estimated_incremental_ncm.sum()
@@ -86,7 +88,8 @@ with tab1:
         st.caption(f"The model-optimized challenger assigns a different action to {(aligned != challenger).sum():,} customers.")
     with st.expander("Interpretation and prospective measurement"):
         st.write(
-            "July customers have no historical campaign exposure or available purchase in the prior 90 days. "
+            "July customers have no historical campaign exposure. Their available records contain zero completed "
+            "purchases in the recent 30/90-day windows; their complete purchase histories for those windows are unknown. "
             "Imputation permits scoring but does not prove that historical effects transfer to this population."
         )
         st.write(
@@ -98,6 +101,36 @@ with tab1:
             "customers—with randomized controls. Comparing only selected offer recipients with controls is biased."
         )
         st.write("The 5% control minimum is a constraint, not a statistical-power calculation.")
+    with st.expander("Purchase history coverage"):
+        st.write("The decision cutoff is June 20, 2025 at 10:00. The 90-day window starts March 22 at 10:00; "
+                 "the 30-day window starts May 21 at 10:00. July scoring includes the cutoff timestamp.")
+        st.write("The latest ordinary transaction supplied is dated January 9, 2025. That is an observed event, "
+                 "not a verified coverage endpoint. Later campaign-attributed orders do not establish complete "
+                 "ordinary purchase history. No complete-source coverage contract was supplied.")
+        if july_coverage.empty:
+            st.info("Rebuild Step 07 to display the per-customer coverage audit.")
+        else:
+            no_observed = july_coverage.observed_orders_90d.eq(0).sum()
+            unknown = july_coverage.complete_orders_90d.isna().sum()
+            st.write(f"Of {len(july_coverage):,} customers, {no_observed:,} have no observed completed orders in "
+                     f"the recent 90 days, and {unknown:,} have unknown complete 90-day counts.")
+            coverage_columns = {
+                "customer_id": "Customer", "observed_orders_30d": "Observed orders, 30 days",
+                "complete_orders_30d": "Complete orders, 30 days",
+                "orders_30d_coverage_status": "30-day coverage", "observed_orders_90d": "Observed orders, 90 days",
+                "complete_orders_90d": "Complete orders, 90 days", "orders_90d_coverage_status": "90-day coverage",
+            }
+            st.dataframe(july_coverage[list(coverage_columns)].rename(columns=coverage_columns),
+                         width="stretch", hide_index=True)
+            st.caption("Missing complete counts mean unknown; observed zero does not establish that no purchase occurred.")
+        if not july_reference.empty:
+            reference_buyers = july_reference.observed_organic_reference_orders.gt(0).sum()
+            reference_orders = july_reference.observed_organic_reference_orders.sum()
+            st.write(f"The older reference interval, October 12, 2024 through January 9, 2025, contains "
+                     f"{reference_orders:,.0f} observed completed ordinary orders across {reference_buyers:,} "
+                     "July customers. This is a stale audit interval, not a recent-window replacement or a model predictor.")
+        st.caption("The coverage correction preserves all 43 model input values and their order. "
+                   "It clarifies what the records establish; it adds no predictive accuracy gain.")
 
 with tab2:
     a = act.set_index("action").reindex(ACTIONS)
@@ -219,6 +252,8 @@ with tab4:
             st.dataframe(pd.read_csv(robustness_path), width="stretch", hide_index=True)
 
 with tab_models:
+    st.info("The model comparisons below measure the earlier model revision. The subsequent purchase-history "
+            "coverage correction preserves the model input values and adds no accuracy gain.")
     st.subheader("Logistic regression: purchase probabilities")
     st.caption("Both the original refit and the selected model train through CP06 and predict CP07. "
                "Average precision measures ranking among purchasers; log loss and Brier score measure probability accuracy. "

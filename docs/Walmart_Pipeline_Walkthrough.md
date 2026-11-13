@@ -1,12 +1,12 @@
 # PromoPilot pipeline walkthrough
 
-Revised November 12, 2026. This document explains the ten implemented steps and how to interpret their outputs. The accompanying **VALIDATION_REPORT.md** records the actual revision commands, before/after measurements, selected model, and remaining limitations. Its measured results take precedence over historical example numbers in older reports.
+Revised November 13, 2026. This document explains the ten implemented steps and how to interpret their outputs. The accompanying **VALIDATION_REPORT.md** records the actual revision commands, before/after measurements, selected model, and remaining limitations. Its measured results take precedence over historical example numbers in older reports.
 
 The business objective is to recommend one of NO_OFFER, PCT_10, PCT_20, or FREE_SHIP for every July customer, maximizing expected incremental 14-day net contribution margin (NCM) under budget and customer-experience constraints.
 
 **Measured performance revision:** the two-part XGBoost model reduces CP07 RMSE from $63.3694 to $62.7385 and MAE from $27.4111 to $26.4806. Logistic average precision rises from 0.2323 to 0.2367, with small probability-quality gains but uncertainty that includes zero improvement. Separately, RANDOM_FREE_SHIP wins development policy selection. Averaging feasible random recipient sets, CP07 DR gain is $7.90 per customer versus no offer and $3.93 versus the original policy, with paired 95% interval [-$2.12, $10.44]. Policy superiority remains uncertain. The saved seed-42 allocation's more favorable $12.74 estimate depends partly on recipient luck. Full comparisons are in VALIDATION_REPORT.md.
 
-The first correction pass repaired evaluation and accounting while retaining the original model. That mattered for trustworthy interpretation but did not improve prediction. This performance revision changes both models and allocation using development data, then measures their retrospective CP07 behavior.
+The first correction pass repaired evaluation and accounting while retaining the original model. The later performance revision changed both models and allocation using development data, then measured their retrospective CP07 behavior. The current transaction-coverage correction adds explicit observed-history names and separate coverage diagnostics while preserving all 43 model predictor values and their order. It does not add an accuracy gain; the reported 1.00% RMSE and 3.39% MAE improvements belong to the preceding model revision.
 
 There are three distinct outputs:
 
@@ -19,12 +19,12 @@ There are three distinct outputs:
 | Step | Notebook | Main saved output |
 |---|---|---|
 | 01 | 01_data_validation | Clean copies of the eleven source tables; data-quality summaries |
-| 02 | 02_build_historical_features | Historical pre-send features and feature schema |
+| 02 | 02_build_historical_features | Historical pre-send features, schema, transaction coverage and reference-window audit |
 | 03 | 03_construct_14_day_outcomes | Historical outcomes and joined feature/outcome table |
 | 04 | 04_business_analysis | Descriptive KPIs and exploration-only effect estimates |
 | 05 | 05_logistic_propensity_model | Purchase-propensity model and diagnostics |
 | 06 | 06_tlearner_xgboost | Expected NCM models, predictions, and diagnostics |
-| 07 | 07_score_july_population | July features and customer-action NCM scores |
+| 07 | 07_score_july_population | July features, coverage and reference-window audit, customer-action NCM scores |
 | 08 | 08_estimate_promotion_cost | Expected costs and long customer-action value table |
 | 09 | 09_milp_policy_optimization | Reserved controls, allocation, and constraint audit |
 | 10 | 10_generate_outputs | Submission, projected baseline comparison, and measurement assignments |
@@ -54,13 +54,19 @@ The shared feature builder is used both for historical campaigns and July. Histo
 | Family | Examples |
 |---|---|
 | Profile | Tenure, membership, customer tier, region, acquisition channel |
-| Purchase | Prior orders, 30/90-day counts, recent revenue, NCM, and order recency |
-| Returns | Known return counts, refund amount, historical return rate |
+| Purchase | Observed prior orders, 30/90-day counts, revenue, NCM, order recency; prior offer redemption rate |
+| Returns | Observed return counts, refund amount, historical return rate |
 | Web | Sessions, page views, cart additions, session recency, preferred browsing category |
 | Email | Prior deliveries, opens/clicks, rates, and recency |
-| Product | Units, distinct products/categories, top recent purchase category |
+| Product | Observed units, distinct products/categories, top purchase category |
 
-Counts and totals are zero when no eligible events exist. Undefined rates, recency, and category fields remain missing for model preprocessing. Refunds known at the decision time are aggregated by decision and order before joining to purchases, avoiding duplicated order totals when an order has multiple refunds.
+Counts and totals describe supplied eligible events and are zero when none are observed. Such zeros do not establish complete purchase inactivity. Nineteen predictors in the purchase, return and product families use an `observed_` prefix, for example `observed_orders_90d`, `observed_days_since_last_order`, and `observed_historical_ncm_90d`. `prior_offer_redemption_rate` and other families retain their names. The model still receives the same 43 values in the same order; the internal computations and timestamp rules are unchanged.
+
+Undefined rates, recency, and category fields remain missing for model preprocessing. Refunds known at the decision time are aggregated by decision and order before joining to purchases, avoiding duplicated order totals when an order has multiple refunds.
+
+`src/coverage.py` produces separate observed counts, requested-window boundaries, verification status and `complete_orders_30d` / `complete_orders_90d`. A complete count is available only when an explicit all-source coverage contract covers the entire requested window and was known by the decision cutoff. `config/transaction_coverage.json` currently contains no verified intervals because none were supplied. Complete counts consequently remain missing for historical training rows as well as July. Coverage metadata are not additional model predictors, and a last observed order timestamp is never treated as a coverage watermark.
+
+The historical outputs include `outputs/tables/historical_transaction_coverage.csv` and `historical_organic_reference_window.csv`. The latter describes only a fixed old organic reference interval, not a corrected recent-feature window. Step 07 produces the corresponding July audits.
 
 Tests inspect event eligibility and inject future events to confirm that features do not change. These tests apply to timestamped events. Profile attributes such as tier and membership lack effective-date histories; their historical availability remains an assumption requiring source provenance or sensitivity analysis. An event cutoff cannot establish that a mutable profile snapshot was available in the past.
 
@@ -100,7 +106,7 @@ A positive point estimate is not a demonstrated positive effect. In the original
 
 ## 6. Step 05: purchase propensity
 
-Logistic regression is the required purchase-propensity model. Preprocessing is fitted inside each training fold. Rolling CP04-CP06 development compares raw and transformed predictors, compact interactions, regularization, and nested temporal sigmoid calibration. Selection maximizes mean average precision with log-loss and Brier safeguards. Calibration is retained only if it improves both probability scores on development data. The frozen winner is refitted on CP01-CP06 and evaluated on CP07, then refitted for deployment.
+The project requires a purchase-propensity baseline; it does not mandate logistic regression as the algorithm. Logistic regression is the implemented baseline. Preprocessing is fitted inside each training fold. Rolling CP04-CP06 development compares raw and transformed predictors, compact interactions, regularization, and nested temporal sigmoid calibration. Selection maximizes mean average precision with log-loss and Brier safeguards. Calibration is retained only if it improves both probability scores on development data. The frozen winner is refitted on CP01-CP06 and evaluated on CP07, then refitted for deployment.
 
 The selected model uses signed-log transformations and compact interactions with C = 0.01 and no additional calibration. CP07 ROC-AUC changes from 0.658743 to 0.658879, average precision from 0.232325 to 0.236708, log loss from 0.371117 to 0.370689, and Brier score from 0.109704 to 0.109558. These gains are small. The paired 95% interval for average-precision change is [-0.00445, 0.01321], so a reliable large improvement is not established.
 
@@ -144,11 +150,22 @@ For the fixed seed-42 allocation, RANDOM_FREE_SHIP has CP07 DR incremental NCM o
 
 ## 8. Step 07: July scoring and support
 
-The shared feature builder reconstructs the same feature definitions at each customer's policy_as_of_ts. Cutoff eligibility, future-event perturbation, schema parity, and one-row-per-customer checks are retained.
+The shared feature builder reconstructs the same feature definitions at each customer's policy_as_of_ts. Cutoff eligibility, future-event perturbation, schema parity, and one-row-per-customer checks are retained. The July decision cutoff is **June 20, 2025 at 10:00**, with these unchanged decision-relative windows:
 
-July is a distinct population: no scoring customer appears in the historical campaigns; no available purchase is within the prior 90 days; several history features are entirely missing. The original latest available purchase for this cohort was roughly 161 days before the decision cutoff.
+| Feature window | Start, inclusive | End, inclusive for July scoring |
+|---|---|---|
+| Prior 90 days | March 22, 2025 at 10:00 | June 20, 2025 at 10:00 |
+| Prior 30 days | May 21, 2025 at 10:00 | June 20, 2025 at 10:00 |
 
-Imputation allows the models to produce scores; it does not verify transfer of the treatment effects. The support analysis examines comparable customers with no campaign history or recent purchases. The absence of recent purchases may represent true inactivity or incomplete data coverage; the dataset alone does not establish which.
+These boundaries were already mathematically correct. Moving the decision cutoff to the campaign send, moving the lookback to January, or changing the 14-day target would answer different questions rather than repair missing source coverage.
+
+July is a distinct population: none of its 2,776 customers appears in the historical campaign assignments. The supplied ordinary (`organic_preperiod`) transactions end with an observed event on January 9, 2025, while later supplied orders are campaign-attributed. As a result, all July customers have zero **observed** completed orders in the recent 30/90-day windows. The latest available July-cohort purchase is approximately 161.5 days before the decision cutoff. January 9 is an observed transaction date, not a certified coverage endpoint; the data do not establish how many ordinary transactions occurred after it. Complete recent purchase counts are unknown, not verified zero.
+
+`outputs/tables/july_transaction_coverage.csv` records the requested windows, `observed_orders_30d` / `observed_orders_90d`, source-specific observed counts, coverage status and `complete_orders_30d` / `complete_orders_90d`. With the empty verified-interval configuration, every July complete count remains missing. The same rule applies to the historical coverage output, so campaign-attributed orders are never treated as proof of complete ordinary-purchase history.
+
+For context, `july_organic_reference_window.csv` summarizes **[October 12, 2024, January 10, 2025)**, including the start and excluding January 10. It contains 279 observed completed organic orders across 256 July customers. Across the full supplied history, 510 July customers have at least one completed order. The fixed reference interval is stale, is not certified complete, and is an audit output only: it is neither a recent-90-day substitute nor a new predictor. The equivalent historical audit uses the same interval and exposes reference availability and age.
+
+Imputation allows models to produce scores; it does not verify purchase-history completeness or transfer of treatment effects. The support analysis identifies customers with no campaign history and no observed recent purchases. That is a description of recorded features, not a verified inactive-customer segment. The coverage correction improves interpretation and auditability without changing the 43 model predictor values, so it cannot be credited with the preceding model revision's accuracy gains.
 
 Outputs contain predicted purchase propensity, expected NCM under all four actions, incremental NCM, and an unconstrained best-action diagnostic. That diagnostic is not the deployed allocation.
 

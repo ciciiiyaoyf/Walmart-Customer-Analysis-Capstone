@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src.diagnostics import build_accrued_target, cold_history_mask, support_report
+from src.diagnostics import build_accrued_target, cold_history_mask, support_report, verified_inactive_mask
 
 
 def accrual_fixture():
@@ -72,3 +72,21 @@ def test_support_report_flags_training_feature_with_no_observations():
     report = support_report(pd.DataFrame({'x': [np.nan, np.nan]}), pd.DataFrame({'x': [0., 1.]}), ['x'], [])
     assert report.iloc[0].scoring_no_training_support_rate == 1.
     assert pd.isna(report.iloc[0].scoring_out_of_range_rate)
+
+
+def test_first_exposure_mask_uses_observed_counts_without_filling_unknowns():
+    data = pd.DataFrame({'prior_emails_delivered': [0., 0., 0., 1.],
+                         'observed_orders_90d': pd.Series([0, 1, pd.NA, 0], dtype='Float64'),
+                         'orders_90d': [99., 0., 0., 0.]})
+    assert cold_history_mask(data).tolist() == [True, False, False, False]
+
+
+def test_verified_inactivity_requires_complete_coverage_and_known_zero():
+    data = pd.DataFrame({
+        'orders_90d_coverage_status': ['verified_complete', 'verified_complete',
+                                       'unverified', 'unverified', 'verified_complete', pd.NA],
+        'complete_orders_90d': pd.Series([0., 2., 0., pd.NA, pd.NA, 0.], dtype='Float64'),
+        'observed_orders_90d': [0., 2., 0., 0., 0., 0.],
+    })
+    assert verified_inactive_mask(data).tolist() == [True, False, False, False, False, False]
+    assert not verified_inactive_mask(data[['observed_orders_90d']]).any()

@@ -1,0 +1,76 @@
+{
+  "comparison_commit": "54cf2ff6618e7bffab69f7d45f0a53f5f0d4aebc",
+  "feature_scope_renames": {
+    "prior_order_count": "observed_prior_order_count",
+    "orders_30d": "observed_orders_30d",
+    "orders_90d": "observed_orders_90d",
+    "days_since_last_order": "observed_days_since_last_order",
+    "gross_revenue_90d": "observed_gross_revenue_90d",
+    "net_revenue_90d": "observed_net_revenue_90d",
+    "avg_order_value_90d": "observed_avg_order_value_90d",
+    "discount_amount_90d": "observed_discount_amount_90d",
+    "cogs_90d": "observed_cogs_90d",
+    "shipping_revenue_90d": "observed_shipping_revenue_90d",
+    "shipping_cost_90d": "observed_shipping_cost_90d",
+    "historical_ncm_90d": "observed_historical_ncm_90d",
+    "returns_90d": "observed_returns_90d",
+    "refund_amount_90d": "observed_refund_amount_90d",
+    "historical_return_rate": "observed_historical_return_rate",
+    "units_purchased_90d": "observed_units_purchased_90d",
+    "distinct_products_90d": "observed_distinct_products_90d",
+    "distinct_categories_90d": "observed_distinct_categories_90d",
+    "top_purchase_category_90d": "observed_top_purchase_category_90d"
+  },
+  "feature_checks": [
+    {
+      "cohort": "historical",
+      "rows": 26600,
+      "predictor_count": 43,
+      "all_predictor_values_identical_after_rename": true
+    },
+    {
+      "cohort": "july",
+      "rows": 2776,
+      "predictor_count": 43,
+      "all_predictor_values_identical_after_rename": true
+    }
+  ],
+  "output_checks": [
+    {
+      "file": "outputs/tables/logistic_test_predictions.csv",
+      "rows": 3800,
+      "changed_rows": 0,
+      "max_absolute_numeric_change": 0.0,
+      "comparison_tolerance": "rtol=1e-10, atol=1e-10"
+    },
+    {
+      "file": "outputs/tables/xgboost_test_predictions.csv",
+      "rows": 1060,
+      "changed_rows": 0,
+      "max_absolute_numeric_change": 0.0,
+      "comparison_tolerance": "rtol=1e-10, atol=1e-10"
+    },
+    {
+      "file": "outputs/tables/july_xgboost_ncm_scores.csv",
+      "rows": 2776,
+      "changed_rows": 0,
+      "max_absolute_numeric_change": 0.0,
+      "comparison_tolerance": "rtol=1e-10, atol=1e-10"
+    },
+    {
+      "file": "outputs/tables/july_action_ncm_scores.csv",
+      "rows": 2776,
+      "changed_rows": 0,
+      "max_absolute_numeric_change": 0.0,
+      "comparison_tolerance": "rtol=1e-10, atol=1e-10"
+    },
+    {
+      "file": "policy_submission.csv",
+      "rows": 2776,
+      "changed_rows": 0,
+      "max_absolute_numeric_change": 0.0,
+      "comparison_tolerance": "rtol=1e-10, atol=1e-10"
+    }
+  ],
+  "no_measured_performance_gain_from_coverage_revision": true
+}

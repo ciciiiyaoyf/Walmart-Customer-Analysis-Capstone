@@ -15,11 +15,15 @@
     "nbformat": "5.10.4",
     "threadpoolctl": "3.5.0"
   },
-  "execution": "Earlier reliability revision executed notebooks 02-10 from committed cleaned snapshot. Performance revision executed notebooks 05-10 plus all tests; raw CSV validation not rerun.",
+  "execution": "Coverage revision executed notebooks 02-10 from the committed cleaned snapshot, rebuilt and reloaded model artifacts, ran all 106 tests, original-model comparison and exact predictor/output comparison against the prior performance revision. Raw CSV validation not rerun.",
   "performance_base_commit": "1221dd1f6ae620bd71c04fb87e65bfb668511fbf",
   "OMP_NUM_THREADS": "unset",
   "performance_selection": "CP04-CP06 rolling development; CP07 retrospective evaluation only",
-  "focused_tests_passed": 74,
+  "focused_tests_passed": 106,
   "purchase_search_blas_threads": 4,
-  "policy_validation_runtime": "Fresh spawn process per campaign; 300-second timeout; owned-worker cleanup; native OpenMP settings unchanged"
+  "policy_validation_runtime": "Fresh spawn process per campaign; 300-second timeout; owned-worker cleanup; native OpenMP settings unchanged",
+  "coverage_base_commit": "54cf2ff6618e7bffab69f7d45f0a53f5f0d4aebc",
+  "coverage_revision_date": "2026-11-13",
+  "coverage_revision_predictors": "19 observation-scope renames; all 43 predictor values and order exactly unchanged",
+  "coverage_revision_prediction_comparison": "CP07 logistic/profit predictions, July action scores, and submission unchanged; maximum absolute numeric difference 0"
 }
