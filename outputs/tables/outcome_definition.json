@@ -2,5 +2,17 @@
   "primary_return_rule": "in_window",
   "label_as_of_ts": null,
   "all_returns_scope": "complete supplied snapshot; retrospective sensitivity",
-  "maturity_caveat": "As-of filters prevent look-ahead but do not recover returns not yet observed."
+  "maturity_caveat": "As-of filters prevent look-ahead but do not recover returns not yet observed.",
+  "shipping_cost_assumptions": {
+    "assumptions_file": "config/shipping_cost_assumptions.json",
+    "assumed_free_shipping_cutoff": 75.0,
+    "basket_basis": "merchandise_gross_revenue before discounts",
+    "standard_fee_observed": 5.99,
+    "positive_shipping_fee_orders": 601,
+    "largest_paid_shipping_basket": 74.99,
+    "smallest_zero_shipping_basket": 75.08,
+    "reference_rule_consistent": true,
+    "completed_orders_between_observed_bounds": 0,
+    "interpretation": "Observed customer fee; inferred counterfactual waived revenue under an explicit assumed cutoff. Not fulfillment shipping_cost."
+  }
 }

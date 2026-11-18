@@ -13,7 +13,7 @@ import numpy as np
 import pandas as pd
 import joblib
 from src.modeling import (ACTIONS, COMMERCIAL, CANDIDATES, XGB_GRID, ConstantPredictor, fit_action_models,
-                          predict_actions, make_xgb_pipe, make_propensity_pipe, reg_metrics)
+                          predict_actions, make_xgb_pipe, fit_logistic_baseline, reg_metrics)
 from src.diagnostics import cold_history_mask
 from src.policy import optimize_policy, build_baseline_policies, get_holdout
 
@@ -293,7 +293,7 @@ def evaluate_fold(history, campaign, num, cat, params, draws=2000):
     reward_nuisance = predict_actions(original, X)
     cost_models = fit_cost_models(train, num, cat, params)
     costs = predict_costs(cost_models, X)
-    purchase = make_propensity_pipe(num, cat).fit(train_all[num+cat], train_all.purchase_14d).predict_proba(X)[:,1]
+    purchase = fit_logistic_baseline(train_all, num, cat).predict_proba(X)[:,1]
     holdout = get_holdout(test.customer_id, seed=42)
     kwargs = dict(budget=JULY_BUDGET*len(test)/JULY_SIZE, holdout_ids=holdout)
     summaries, individuals, metrics, assignments = [], [], [], []
@@ -418,7 +418,6 @@ def run_return_sensitivity(history, july, clean, num, cat, params, method, table
     """
     from src.diagnostics import build_accrued_target
     from src.policy import allocate_selected_policy
-    from src.propensity import select_purchase_config, fit_purchase_model
     policy_rule = policy_rule or method
     tables=Path(tables)
     cutoff=pd.to_datetime(july.policy_as_of_ts).min()
@@ -429,8 +428,7 @@ def run_return_sensitivity(history, july, clean, num, cat, params, method, table
     exp=mature[mature.assignment_source=="exploration"]
     final_costs=fit_cost_models(history[history.assignment_source=="exploration"],num,cat,params,selection_campaign="CP06")
     july_cost=predict_costs(final_costs,july[num+cat])
-    purchase_config, _, _ = select_purchase_config(history,num,cat)
-    purchase=fit_purchase_model(history,num,cat,purchase_config).predict_proba(july[num+cat])[:,1]
+    purchase=fit_logistic_baseline(history,num,cat).predict_proba(july[num+cat])[:,1]
     juli=july.rename(columns={"policy_as_of_ts":"send_ts"})
     hold=get_holdout(july.customer_id)
     mix=history.loc[history.assignment_source.eq('business_rule') & history.offer_type.ne('NO_OFFER'),'offer_type'].value_counts(normalize=True).to_dict()
@@ -460,8 +458,7 @@ def run_return_sensitivity(history, july, clean, num, cat, params, method, table
     te=mature[mature.campaign_id.eq(campaign) & mature.assignment_source.eq("exploration")].sort_values("customer_id")
     cfg, _=tune_on_prior_campaigns(tr,num,cat)
     costs=predict_costs(fit_cost_models(tr,num,cat,cfg),te[num+cat])
-    purchase_config, _, _ = select_purchase_config(training,num,cat)
-    purchase=fit_purchase_model(training,num,cat,purchase_config).predict_proba(te[num+cat])[:,1]
+    purchase=fit_logistic_baseline(training,num,cat).predict_proba(te[num+cat])[:,1]
     mix=training.loc[training.assignment_source.eq('business_rule') & training.offer_type.ne('NO_OFFER'),'offer_type'].value_counts(normalize=True).to_dict()
     allocation={}; nuisance={}
     for label,target in [("PRIMARY_14D","ncm_14d"),("ACCRUED_45D",accrued)]:

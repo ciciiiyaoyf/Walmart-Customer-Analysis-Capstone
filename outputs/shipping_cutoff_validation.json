@@ -1,0 +1,27 @@
+{
+  "date": "2026-11-18",
+  "assumed_free_shipping_cutoff": 75.0,
+  "previous_operational_cutoff": 75.08,
+  "fee_source": "Observed positive shipping_revenue: $5.99 on all 601 positive-fee reference orders.",
+  "outcome_tables": [
+    {
+      "table": "historical_outcomes",
+      "rows": 26600,
+      "all_values_unchanged": true
+    },
+    {
+      "table": "historical_feature_outcome",
+      "rows": 26600,
+      "all_values_unchanged": true
+    }
+  ],
+  "historical_cost_labels_unchanged": true,
+  "reason": "No supplied completed basket lies between $74.99 and $75.08; both cutoffs give identical historical labels.",
+  "model_refit_required_for_cutoff_change": false,
+  "boundary_test": "$74.99 -> $5.99 waived fee; $75.00 and above -> $0.",
+  "source_evidence": "outputs/tables/shipping_fee_evidence.json",
+  "tests": {
+    "command": "python -m pytest tests -q",
+    "passed": 151
+  }
+}

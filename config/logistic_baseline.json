@@ -1,0 +1,15 @@
+{
+  "model": "logistic_baseline",
+  "specification": "original",
+  "config": {
+    "mode": "raw",
+    "C": 0.01,
+    "calibration": "none"
+  },
+  "implementation": "src.modeling.make_propensity_pipe",
+  "decision_date": "2026-11-18",
+  "selection_rule": "User preference retains the simpler original specification after reviewing the earlier retrospective comparison; no claim of new held-out superiority.",
+  "threshold_rule": "maximum F1 on pooled out-of-time CP04-CP06 predictions; lowest threshold wins ties",
+  "historical_experiments": "outputs/experiments/propensity/",
+  "cp07_status": "Previously inspected; retrospective evaluation only"
+}

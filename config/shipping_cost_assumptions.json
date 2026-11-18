@@ -1,0 +1,15 @@
+{
+  "free_shipping_cutoff": 75.0,
+  "currency": "USD",
+  "basket_basis": "merchandise_gross_revenue before discounts",
+  "eligibility": "ordinary free shipping when merchandise_gross_revenue >= 75.00",
+  "decision_date": "2026-11-18",
+  "provenance": "User-approved assumption; the supplied data package does not explicitly state an exact tariff cutoff.",
+  "supporting_observations": {
+    "largest_paid_shipping_basket": 74.99,
+    "smallest_zero_shipping_basket": 75.08,
+    "population": "completed orders without redeemed FREE_SHIP"
+  },
+  "standard_fee_source": "Observed positive shipping_revenue on completed orders without redeemed FREE_SHIP; all observed positive fees are 5.99.",
+  "promotion_cost_interpretation": "Customer shipping revenue waived by the offer, not fulfillment shipping_cost; inferred for an otherwise identical basket."
+}

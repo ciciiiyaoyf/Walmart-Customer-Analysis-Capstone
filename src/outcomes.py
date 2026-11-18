@@ -16,6 +16,23 @@ REFUND_COLUMNS = [
 ]
 
 
+def inferred_waived_shipping_fee(gross, *, free_shipping_cutoff, standard_fee):
+    """Forgone customer fee for an otherwise identical FREE_SHIP basket.
+
+    The cutoff is an explicit assumption on merchandise before discounts.
+    A basket exactly at the cutoff already qualifies for ordinary free shipping.
+    Callers apply this only to eligible redeemed FREE_SHIP orders.
+    """
+    gross = np.asarray(gross, dtype=float)
+    if not np.isfinite(free_shipping_cutoff) or free_shipping_cutoff <= 0:
+        raise ValueError("Free-shipping cutoff must be finite and positive")
+    if not np.isfinite(standard_fee) or standard_fee < 0:
+        raise ValueError("Standard shipping fee must be finite and nonnegative")
+    if not np.isfinite(gross).all() or (gross < 0).any():
+        raise ValueError("Merchandise gross must be finite and nonnegative")
+    return np.where(gross < free_shipping_cutoff, standard_fee, 0.)
+
+
 def applicable_refunds(outcome_orders, returns, rule="in_window", as_of_ts=None):
     """Aggregate refunds once per assignment, retaining independent timing totals.
 

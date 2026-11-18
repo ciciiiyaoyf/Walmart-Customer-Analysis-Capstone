@@ -4,7 +4,7 @@ Revised November 18, 2026. This document explains the ten implemented steps and 
 
 The business objective is to recommend one of NO_OFFER, PCT_10, PCT_20, or FREE_SHIP for every July customer, maximizing expected incremental 14-day net contribution margin (NCM) under budget and customer-experience constraints.
 
-**The project uses one logistic purchase-propensity baseline**, with CP07 average precision 0.2367 and recall 50.10% at its frozen threshold. Earlier logistic versions are experiment history, not additional required baselines. The two-part XGBoost model reduces CP07 RMSE from $63.3694 to $62.7385 and MAE from $27.4111 to $26.4806. Separately, RANDOM_FREE_SHIP wins development policy selection. Averaging feasible random recipient sets, CP07 DR gain is $7.90 per customer versus no offer and $3.93 versus the original policy, with paired 95% interval [-$2.12, $10.44]. Policy superiority remains uncertain. The saved seed-42 allocation's more favorable $12.74 estimate depends partly on recipient luck. Historical comparisons are in VALIDATION_REPORT.md.
+**The project uses the original logistic regression as its one purchase-propensity baseline**, with CP07 average precision 0.2323 and recall 60.88% at its frozen threshold. The more complex logistic version remains experiment history. The two-part XGBoost model reduces CP07 RMSE from $63.3694 to $62.7385 and MAE from $27.4111 to $26.4806. Separately, RANDOM_FREE_SHIP wins development policy selection. Averaging feasible random recipient sets, CP07 DR gain is $7.90 per customer versus no offer and $3.93 versus the original policy, with paired 95% interval [-$2.12, $10.44]. Policy superiority remains uncertain. The saved seed-42 allocation's more favorable $12.74 estimate depends partly on recipient luck. Historical comparisons are in VALIDATION_REPORT.md.
 
 The first correction pass repaired evaluation and accounting while retaining the original model. The later performance revision changed both models and allocation using development data, then measured their retrospective CP07 behavior. The transaction-coverage correction adds explicit observed-history names and separate coverage diagnostics while preserving all 43 model predictor values and their order. The current metric extension adds average precision/recall reporting, offer-level profit bias/calibration, and separate purchase/margin checks. Neither diagnostic extension adds an accuracy gain; the reported 1.00% RMSE and 3.39% MAE improvements belong to the preceding model revision.
 
@@ -92,7 +92,13 @@ When later refunds are used for model training or validation, labels must be mat
 
 ### Promotion cost
 
-PCT offers use the discount on redeemed orders. NO_OFFER costs zero. FREE_SHIP uses an inferred waived shipping fee: observed baskets support a paid/free threshold between $74.99 and $75.08 and a $5.99 fee. This is an assumption about the tariff, not an independently recorded waived-fee field.
+PCT offers use the discount on redeemed orders. NO_OFFER costs zero. FREE_SHIP uses an inferred waived shipping fee. The $5.99 amount is observed: all 601 positive shipping_revenue values in the supplied orders equal $5.99. The dictionary identifies this as the customer-paid fee; the retailer's actual shipping_cost is a separate field.
+
+Among completed orders without FREE_SHIP, the largest gross basket paying a fee is $74.99 and the smallest zero-fee gross basket is $75.08. These values bracket the ordinary free-shipping threshold; they do not describe a required basket range. The project owner explicitly assumes a $75 cutoff, recorded in config/shipping_cost_assumptions.json and used by Step 03. A $75 threshold fits the observed boundary, but the exact tariff is not documented in the supplied data package or offer catalog.
+
+The assumption also concerns the counterfactual fee: the source has no waived-fee field, so the code assumes a redeemed FREE_SHIP order with gross basket value below $75 would otherwise have paid $5.99. Baskets of $75 or more already qualify for ordinary free shipping and incur no additional waived-fee promotion cost. This inference does not substitute $5.99 for the retailer's physical shipping expense.
+
+Source counts and fee evidence are saved in outputs/tables/shipping_fee_evidence.json. The explicit $75 assumption leaves all 26,600 historical outcome rows unchanged, as verified in outputs/shipping_cutoff_validation.json; no observed completed basket lies between $74.99 and $75.08.
 
 ## 5. Step 04: descriptive and causal analysis
 
@@ -108,17 +114,19 @@ A positive point estimate is not a demonstrated positive effect. In the original
 
 The project requires a purchase-propensity baseline; it does not mandate logistic regression as the algorithm. One logistic regression is the implemented baseline. Its job is to estimate each customer's probability of a qualifying purchase in the next 14 days so the propensity policy can rank customers. Step 05 loads the fixed configuration, fits preprocessing only on each fold's training rows, evaluates on CP07 after fitting CP01-CP06, and finally refits on CP01-CP07 for July scoring. The temporal fits evaluate the same model specification; they are not separate baseline methods.
 
-The baseline uses signed-log transformations and compact interactions with C = 0.01 and no additional calibration. These settings came from earlier development experiments; rerunning that search or fitting an older original model is not part of the main baseline workflow. Optional experiment code and comparison records remain in scripts/experiment_propensity.py and outputs/experiments/propensity/. The headline metrics and supporting classification counts for the one current baseline are saved in purchase_headline_metrics.csv.
+The baseline uses the original specification from src/modeling.py: make_propensity_pipe. It retains all 43 registered predictors, imputes and standardizes numeric values, encodes categories, and uses C = 0.01, without added log transformations, interactions, or probability calibration. The fixed configuration is in config/logistic_baseline.json. The project owner chose this simpler specification after reviewing the retrospective comparison; this is not a claim of superior future performance. The more complex version and its tuning records remain in scripts/experiment_propensity.py and outputs/experiments/propensity/. The current baseline's headline metrics and classification counts are saved in purchase_headline_metrics.csv. Execution and downstream differences are recorded in outputs/original_logistic_validation.json.
+
+Categorical missing values use a consistent representation before encoding, so a live feature join and the same features loaded from Parquet produce identical probabilities. This preserves the original learned missing category and its CP07 results. Restoring the original changes 88 July actions in the PCT_10 propensity comparison policy; the final selected RANDOM_FREE_SHIP submission is unchanged.
 
 | Purchase diagnostic on CP07 | Logistic baseline |
 |---|---|
-| Average precision | 0.236708 |
-| Recall | 50.10% |
-| Precision | 21.49% |
-| Classified-positive share | 30.74% |
-| Frozen development threshold | 0.15878 |
+| Average precision | 0.232325 |
+| Recall | 60.88% |
+| Precision | 20.20% |
+| Classified-positive share | 39.74% |
+| Frozen development threshold | 0.12903 |
 
-Evaluation uses 3,800 CP07 assignments, including 501 purchasers. At the frozen threshold, the baseline flags 1,168 customers; 251 of them purchase. Recall is 251/501 and precision is 251/1,168. These are measured purchase-prediction results, not proof that giving those customers an offer causes additional profit.
+Evaluation uses 3,800 CP07 assignments, including 501 purchasers. At the frozen threshold, the baseline flags 1,510 customers; 305 of them purchase. Recall is 305/501 and precision is 305/1,510. These are measured purchase-prediction results, not proof that giving those customers an offer causes additional profit. The higher recall than the complex experiment's separately chosen threshold includes flagging more customers; it does not establish a better ranking at the same targeting capacity.
 
 Average precision summarizes precision-recall ranking over thresholds. Recall is the fraction of actual purchasers classified positive at a frozen threshold. The max-F1 rule chooses the baseline's threshold from its out-of-time CP04-CP06 predictions, before CP07 evaluation, and saves it in purchase_thresholds.json. Recall is reported with precision and the classified-positive share, because predicting everyone positive would trivially achieve 100% recall. These binary classifications are diagnostic; they do not determine promotion recipients.
 

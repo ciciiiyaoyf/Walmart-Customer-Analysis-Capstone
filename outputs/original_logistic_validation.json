@@ -1,0 +1,56 @@
+{
+  "date": "2026-11-18",
+  "comparison_commit": "b8753caef45b1dc81eeff2340dbdc240cc311aab",
+  "reason": "User requested the simpler original logistic baseline after reviewing retrospective comparisons; not a claim of newly validated superiority.",
+  "configuration": {
+    "mode": "raw",
+    "C": 0.01,
+    "calibration": "none"
+  },
+  "base_features": 43,
+  "encoded_features": 85,
+  "cp07_original_reference_rows": 3800,
+  "cp07_original_predictions_match_atol": 1e-12,
+  "headline_metrics": [
+    {
+      "model": "logistic_baseline",
+      "average_precision": 0.232324671014137,
+      "recall": 0.6087824351297405,
+      "precision": 0.2019867549668874,
+      "threshold": 0.1290344837488392,
+      "tp": 305,
+      "fp": 1205,
+      "fn": 196,
+      "tn": 2094
+    }
+  ],
+  "july_probability_changed_rows": 2776,
+  "july_probability_max_absolute_change": 0.07006182343445477,
+  "july_propensity_baseline_action_changed_rows": 88,
+  "july_selected_policy_submission_unchanged": true,
+  "july_features_and_profit_forecasts_unchanged": true,
+  "saved_profit_models_and_original_experiment_records_unchanged": true,
+  "categorical_null_handling": "Original logistic standardizes None, NaN and pd.NA to its learned categorical missing representation; live and saved July features give identical probabilities.",
+  "customer_112000_purchase_probability": 0.095204836631358,
+  "execution": {
+    "full_notebooks": [
+      "05",
+      "07",
+      "08",
+      "09",
+      "10"
+    ],
+    "policy_search": "CP04-CP06 and retrospective CP07 rerun with original logistic; same allocation winner",
+    "notebook_06": "Policy presentation refreshed from rerun search and verified unchanged saved profit models; profit search/component diagnostics not rerun"
+  },
+  "tests": {
+    "command": "python -m pytest tests -q",
+    "passed": 151,
+    "new_regression_cases": [
+      "original CP07 probability reproduction",
+      "categorical missing representations and saved-model consistency",
+      "inclusive $75 shipping cutoff"
+    ]
+  },
+  "dashboard_smoke_test": "Streamlit AppTest renders without exceptions; baseline AP=0.23232 and recall=60.88%"
+}

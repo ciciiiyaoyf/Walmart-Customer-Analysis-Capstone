@@ -1,11 +1,11 @@
 band,n,mean_predicted_probability,observed_purchase_rate,model,split,binning
-0,380,0.05980692886707471,0.05526315789473684,logistic_baseline,CP07,prediction quantiles; descriptive
-1,380,0.06608593662801897,0.060526315789473685,logistic_baseline,CP07,prediction quantiles; descriptive
-2,380,0.07271957616546176,0.09473684210526316,logistic_baseline,CP07,prediction quantiles; descriptive
-3,380,0.0820807332540777,0.1,logistic_baseline,CP07,prediction quantiles; descriptive
-4,380,0.09124880750458776,0.0868421052631579,logistic_baseline,CP07,prediction quantiles; descriptive
-5,380,0.11377847551730541,0.11578947368421053,logistic_baseline,CP07,prediction quantiles; descriptive
-6,380,0.14726372670762883,0.15789473684210525,logistic_baseline,CP07,prediction quantiles; descriptive
-7,380,0.171490735477022,0.16578947368421051,logistic_baseline,CP07,prediction quantiles; descriptive
-8,380,0.20599011188127722,0.17105263157894737,logistic_baseline,CP07,prediction quantiles; descriptive
-9,380,0.2955596700798981,0.3105263157894737,logistic_baseline,CP07,prediction quantiles; descriptive
+0,380,0.05830327621112662,0.06578947368421052,logistic_baseline,CP07,prediction quantiles; descriptive
+1,380,0.06618089149616138,0.05,logistic_baseline,CP07,prediction quantiles; descriptive
+2,380,0.07320330640868612,0.08947368421052632,logistic_baseline,CP07,prediction quantiles; descriptive
+3,380,0.08211351712614987,0.10526315789473684,logistic_baseline,CP07,prediction quantiles; descriptive
+4,380,0.09191833266597356,0.09210526315789473,logistic_baseline,CP07,prediction quantiles; descriptive
+5,380,0.11280166003165679,0.10526315789473684,logistic_baseline,CP07,prediction quantiles; descriptive
+6,380,0.14357534964579638,0.15789473684210525,logistic_baseline,CP07,prediction quantiles; descriptive
+7,380,0.1695248788574797,0.18157894736842106,logistic_baseline,CP07,prediction quantiles; descriptive
+8,380,0.2036192518306226,0.17105263157894737,logistic_baseline,CP07,prediction quantiles; descriptive
+9,380,0.2877570056308399,0.3,logistic_baseline,CP07,prediction quantiles; descriptive

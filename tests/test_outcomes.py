@@ -2,8 +2,16 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src.outcomes import applicable_refunds, refund_reconciliation
+from src.outcomes import applicable_refunds, refund_reconciliation, inferred_waived_shipping_fee
 from src.features import build_features
+
+
+def test_assumed_75_dollar_shipping_cutoff_is_inclusive():
+    # Include unseen boundary baskets: the observed-data minimum is 75.08,
+    # but the approved assumption gives ordinary free shipping from 75.00.
+    fee = inferred_waived_shipping_fee([74.99, 75.00, 75.01, 75.08, 100.00],
+                                      free_shipping_cutoff=75., standard_fee=5.99)
+    np.testing.assert_array_equal(fee, [5.99, 0., 0., 0., 0.])
 
 
 def refund_fixture():

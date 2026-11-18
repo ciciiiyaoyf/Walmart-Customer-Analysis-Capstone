@@ -3,7 +3,7 @@
   "target": "purchase_14d",
   "C": 0.01,
   "configuration": {
-    "mode": "log_interactions",
+    "mode": "raw",
     "C": 0.01,
     "calibration": "none"
   },
@@ -91,17 +91,6 @@
     "num__observed_units_purchased_90d",
     "num__observed_distinct_products_90d",
     "num__observed_distinct_categories_90d",
-    "num__preferred_matches_browse",
-    "num__purchase_matches_browse",
-    "num__recent_purchase",
-    "num__recent_browse",
-    "num__session_recency_intensity",
-    "num__member_sessions",
-    "num__member_spend",
-    "num__gold_sessions",
-    "num__gold_spend",
-    "num__silver_sessions",
-    "num__silver_spend",
     "num__missingindicator_observed_days_since_last_order",
     "num__missingindicator_observed_avg_order_value_90d",
     "num__missingindicator_prior_offer_redemption_rate",
@@ -113,7 +102,6 @@
     "num__missingindicator_historical_click_rate",
     "num__missingindicator_days_since_last_email_open",
     "num__missingindicator_days_since_last_email_click",
-    "num__missingindicator_session_recency_intensity",
     "cat__region_Midwest",
     "cat__region_Northeast",
     "cat__region_South",
@@ -151,13 +139,7 @@
     "cat__observed_top_purchase_category_90d_Climbing",
     "cat__observed_top_purchase_category_90d_Footwear",
     "cat__observed_top_purchase_category_90d_Hydration",
-    "cat__observed_top_purchase_category_90d_None",
-    "cat__tier_membership_Gold_0",
-    "cat__tier_membership_Gold_1",
-    "cat__tier_membership_Silver_0",
-    "cat__tier_membership_Silver_1",
-    "cat__tier_membership_Standard_0",
-    "cat__tier_membership_Standard_1"
+    "cat__observed_top_purchase_category_90d_None"
   ],
   "train_campaigns_final": [
     "CP01",
@@ -185,16 +167,18 @@
     "CP07"
   ],
   "evaluation_status": "retrospective; CP07 was previously inspected",
-  "configuration_source": "outputs/tables/logistic_selected_config.json; prior development experiment",
-  "selection_rule": "maximize mean out-of-time average precision with log_loss <= original + .001 and Brier <= original + .0005; ROC-AUC tie-break. Select nested temporal sigmoid only if both log-loss and Brier improve.",
-  "f1_threshold_from_valid": 0.15877993769334672,
+  "specification": "original",
+  "implementation": "src.modeling.fit_logistic_baseline",
+  "configuration_source": "config/logistic_baseline.json; user preference for the original baseline",
+  "selection_rule": "User preference retains the simpler original specification after reviewing the earlier retrospective comparison; no claim of new held-out superiority.",
+  "f1_threshold_from_valid": 0.12903448374883927,
   "headline_metrics": [
     "average_precision",
     "recall"
   ],
   "threshold_selection": {
     "model": "logistic_baseline",
-    "threshold": 0.15877993769334672,
+    "threshold": 0.12903448374883927,
     "campaigns": [
       "CP04",
       "CP05",
@@ -202,7 +186,7 @@
     ],
     "rule": "maximum F1 on pooled out-of-time development predictions; lowest threshold wins ties",
     "configuration": {
-      "mode": "log_interactions",
+      "mode": "raw",
       "C": 0.01,
       "calibration": "none"
     },

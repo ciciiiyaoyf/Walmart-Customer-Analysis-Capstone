@@ -287,7 +287,7 @@ with tab_models:
                          width="stretch", hide_index=True)
     with st.expander("Archived logistic development experiment (optional)"):
         st.write("The original-versus-revised comparison records an earlier development experiment. "
-                 "Only the revised specification is used as the project's logistic baseline. "
+                 "The original specification is used as the project's logistic baseline. "
                  "The small average-precision change did not establish a clear improvement; recall at "
                  "the separately chosen thresholds declined. This experiment is not a second operational baseline.")
         if not logistic_comparison.empty:

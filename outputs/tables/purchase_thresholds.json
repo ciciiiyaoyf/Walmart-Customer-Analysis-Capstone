@@ -1,6 +1,6 @@
 {
   "model": "logistic_baseline",
-  "threshold": 0.15877993769334672,
+  "threshold": 0.12903448374883927,
   "campaigns": [
     "CP04",
     "CP05",
@@ -8,7 +8,7 @@
   ],
   "rule": "maximum F1 on pooled out-of-time development predictions; lowest threshold wins ties",
   "configuration": {
-    "mode": "log_interactions",
+    "mode": "raw",
     "C": 0.01,
     "calibration": "none"
   },

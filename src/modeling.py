@@ -1,15 +1,16 @@
-"""Shared model plumbing for Steps 06 and 08: feature lists from the Step 02 schema and the XGBoost pipeline factory."""
+"""Shared model plumbing, including the project's original logistic baseline."""
+import json
 import numpy as np
 import pandas as pd
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import OneHotEncoder
+from sklearn.preprocessing import FunctionTransformer, OneHotEncoder
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LogisticRegression
 from xgboost import XGBRegressor
-from src.common import TABLES
+from src.common import ROOT, TABLES
 
 ACTIONS = ["NO_OFFER", "PCT_10", "PCT_20", "FREE_SHIP"]
 COMMERCIAL = ACTIONS[1:]
@@ -111,11 +112,44 @@ def predict_actions(models, X):
     return result
 
 
+def canonicalize_logistic_categories(values):
+    """Give categorical nulls the same representation before and after Parquet.
+
+    Historical training tables load categorical nulls as ``None``. Live feature
+    joins can instead produce ``np.nan`` or ``pd.NA``. Preserve the learned null
+    category so serialization alone cannot change a customer's probability.
+    This normalization is confined to the logistic baseline.
+    """
+    return values.astype(object).where(pd.notna(values), None)
+
+
 def make_propensity_pipe(num, cat, C=0.01):
     """Purchase probability, not treatment propensity; fitted separately per time fold."""
     pre = ColumnTransformer([
         ("num", Pipeline([("imp", SimpleImputer(strategy="median", add_indicator=True)),
                           ("sc", StandardScaler())]), num),
-        ("cat", Pipeline([("imp", SimpleImputer(strategy="constant", fill_value="Missing")),
+        ("cat", Pipeline([("nulls", FunctionTransformer(canonicalize_logistic_categories, feature_names_out="one-to-one")),
+                          ("imp", SimpleImputer(strategy="constant", fill_value="Missing")),
                           ("ohe", OneHotEncoder(handle_unknown="ignore"))]), cat)])
     return Pipeline([("pre", pre), ("lr", LogisticRegression(C=C, solver="lbfgs", max_iter=2000, random_state=42))])
+
+
+def load_logistic_baseline_config():
+    """Return the active configuration record, including its decision provenance.
+
+    The original specification is explicit, shared by the baseline notebook and
+    policy evaluation. Experimental tuning outputs do not override this choice.
+    """
+    record = json.loads((ROOT / "config/logistic_baseline.json").read_text(encoding="utf-8"))
+    config = record["config"]
+    if record.get("specification") != "original" or config.get("mode") != "raw" or config.get("calibration") != "none":
+        raise ValueError("The active logistic baseline must be the original raw specification without extra calibration")
+    if not np.isfinite(float(config["C"])) or float(config["C"]) <= 0:
+        raise ValueError("Logistic baseline C must be finite and positive")
+    return record
+
+
+def fit_logistic_baseline(data, num, cat):
+    """Fit the configured original baseline on the supplied training rows only."""
+    config = load_logistic_baseline_config()["config"]
+    return make_propensity_pipe(num, cat, C=float(config["C"])).fit(data[num + cat], data.purchase_14d)

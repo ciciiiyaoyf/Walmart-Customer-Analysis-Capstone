@@ -70,6 +70,6 @@
   "random_seed": 42,
   "bootstrap_draws": 2000,
   "OMP_NUM_THREADS": "unset",
-  "purchase_baseline_selection": "nested prior-campaign selection and refit of the same purchase-model procedure used for July",
+  "purchase_baseline_selection": "user-fixed original logistic from config/logistic_baseline.json; earlier-campaign fit only; no nested search",
   "execution": "fresh spawn process per campaign; 300-second worker timeout; native OpenMP settings unchanged"
 }

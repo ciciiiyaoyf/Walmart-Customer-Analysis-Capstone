@@ -10,24 +10,16 @@ from src.profit_models import fit_profit_models
 from src.evaluation import cluster_dr_interval, _paired_dr_frame, tune_on_prior_campaigns
 
 
-def run_performance_validation(history, num, cat, tables, models_dir, draws=2000):
-    """Select prediction and allocation separately on CP04-06, then audit CP07.
+def publish_policy_validation(history, policy, profit, tables, models_dir, draws=2000):
+    """Publish saved policy results without refitting unchanged profit models.
 
-    CP07 has been inspected before this revision. It is never an input to either
-    selection rule, but the resulting audit is explicitly retrospective.
+    ``policy`` and ``profit`` are the already saved selection records. Return
+    the combined deployment selection and the CP07 policy summary. This helper
+    neither runs a selection search nor changes a fitted model artifact.
     """
-    from scripts.experiment_profit import run_profit_search, evaluate_profit_selection
-    from scripts.experiment_policy import run_policy_search
-
     tables, models_dir = Path(tables), Path(models_dir)
     root = tables.parents[1]
-    profit_out = root / "outputs/experiments/profit"
     policy_out = root / "outputs/experiments/policy"
-    profit = run_profit_search(history, num, cat, profit_out)
-    run_policy_search(history, num, cat, policy_out, draws=draws)
-    # Both development choices are now serialized before their final-model fits.
-    predictive_metrics, predictions = evaluate_profit_selection(history, num, cat, profit, profit_out)
-    policy = json.loads((policy_out / "selection.json").read_text())
     forecast = profit["selected_model"]
     selected = policy["selected_policy"]
     baseline_names = {"ALL_NO_OFFER", "PROPENSITY_PCT10", "HISTORICAL_MIX", "RANDOM_FREE_SHIP"}
@@ -68,6 +60,30 @@ def run_performance_validation(history, num, cat, tables, models_dir, draws=2000
     for source, target in [("development_ranking.csv", "policy_candidate_selection.csv"),
                            ("development_fold_summary.csv", "rolling_policy_validation.csv")]:
         pd.read_csv(policy_out / source).to_csv(tables / target, index=False)
+    summary.assign(policy_scope="feasible constrained policy").to_csv(tables / "tlearner_policy_value_cp07.csv", index=False)
+    return selection, summary
+
+
+def run_performance_validation(history, num, cat, tables, models_dir, draws=2000):
+    """Select prediction and allocation separately on CP04-06, then audit CP07.
+
+    CP07 has been inspected before this revision. It is never an input to either
+    selection rule, but the resulting audit is explicitly retrospective.
+    """
+    from scripts.experiment_profit import run_profit_search, evaluate_profit_selection
+    from scripts.experiment_policy import run_policy_search
+
+    tables, models_dir = Path(tables), Path(models_dir)
+    root = tables.parents[1]
+    profit_out = root / "outputs/experiments/profit"
+    policy_out = root / "outputs/experiments/policy"
+    profit = run_profit_search(history, num, cat, profit_out)
+    run_policy_search(history, num, cat, policy_out, draws=draws)
+    # Both development choices are now serialized before their final-model fits.
+    predictive_metrics, predictions = evaluate_profit_selection(history, num, cat, profit, profit_out)
+    policy = json.loads((policy_out / "selection.json").read_text())
+    selection, summary = publish_policy_validation(history, policy, profit, tables, models_dir, draws=draws)
+    forecast, allocation_model = selection["forecast_model"], selection["allocation_model"]
     pd.read_csv(profit_out / "development_fold_metrics.csv").to_csv(tables / "rolling_model_metrics.csv", index=False)
     predictive_metrics.assign(split="CP07").to_csv(tables / "model_comparison_cp07.csv", index=False)
     chosen_metrics = predictive_metrics[predictive_metrics.model.eq(forecast)]
@@ -80,7 +96,6 @@ def run_performance_validation(history, num, cat, tables, models_dir, draws=2000
     chosen_predictions["recommended_action_unconstrained"] = np.array(ACTIONS)[chosen_predictions[pcols].to_numpy().argmax(axis=1)]
     for name in ["xgboost_test_predictions.csv", "tlearner_test_predictions.csv"]:
         chosen_predictions.to_csv(tables / name, index=False)
-    summary.assign(policy_scope="feasible constrained policy").to_csv(tables / "tlearner_policy_value_cp07.csv", index=False)
     final = fit_profit_models(history[history.assignment_source.eq("exploration")], num, cat, profit["config"])
     exp = history[history.assignment_source.eq("exploration")]
     params, _ = tune_on_prior_campaigns(exp[exp.campaign_id.lt("CP07")], num, cat)

@@ -18,9 +18,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import numpy as np
 import pandas as pd
 from threadpoolctl import threadpool_limits
-from src.modeling import ACTIONS, feature_lists, fit_action_models, predict_actions, reg_metrics
+from src.modeling import (ACTIONS, feature_lists, fit_action_models, predict_actions, reg_metrics,
+                          fit_logistic_baseline, load_logistic_baseline_config)
 from src.profit_models import PROFIT_CANDIDATES, fit_profit_models
-from src.propensity import select_purchase_config, fit_purchase_model
 from src.evaluation import (JULY_BUDGET, JULY_SIZE, tune_on_prior_campaigns, fit_cost_models,
                             predict_costs, value_table, evaluate_policy, cluster_dr_interval,
                             _paired_dr_frame)
@@ -97,15 +97,15 @@ def evaluate_campaign(history, campaign, num, cat, draws, candidate_names=None):
     nuisance = predict_actions(original, test[num+cat])
     costs = predict_costs(fit_cost_models(train, num, cat, params), test[num+cat])
     kwargs = dict(budget=JULY_BUDGET*len(test)/JULY_SIZE, holdout_ids=get_holdout(test.customer_id))
-    # Validate the complete purchase-ranking procedure used by the July baseline.
-    # Each outer fold selects its configuration from earlier campaigns only;
-    # CP07 therefore uses the same CP04-06 search as the final purchase model.
+    # Use the original, fixed logistic specification requested for the July
+    # purchase-propensity baseline. Each fold fits earlier campaigns only;
+    # there is no separate feature-transform or regularization search here.
     # Dense logistic fits do not benefit from the machine-wide BLAS pool here.
     # Scope the limit to this stage and restore it before XGBoost/HiGHS; changing
     # OpenMP settings globally can change XGBoost's randomized training results.
     with threadpool_limits(limits=4, user_api="blas"):
-        purchase_config, purchase_folds, _ = select_purchase_config(train_all, num, cat)
-        purchase = fit_purchase_model(train_all, num, cat, purchase_config).predict_proba(test[num+cat])[:, 1]
+        purchase_config = load_logistic_baseline_config()["config"]
+        purchase = fit_logistic_baseline(train_all, num, cat).predict_proba(test[num+cat])[:, 1]
     reference_values = value_table(test, nuisance, costs, purchase)
     modelsets = {"ORIGINAL_TLEARNER": original,
                  "ACTION_MEAN": fit_action_models(train, num, cat, params, method="ACTION_MEAN")}
@@ -140,7 +140,8 @@ def evaluate_campaign(history, campaign, num, cat, draws, candidate_names=None):
     stochastic = stochastic_free_ship_scores(test, nuisance, costs, kwargs["holdout_ids"], kwargs["budget"])
     summaries = pd.DataFrame(summaries)
     summaries["purchase_baseline_config"] = json.dumps(purchase_config, sort_keys=True)
-    summaries["purchase_validation_campaigns"] = json.dumps(sorted(purchase_folds.campaign.unique()) if not purchase_folds.empty else [])
+    summaries["purchase_validation_campaigns"] = "[]"
+    summaries["purchase_baseline_selection"] = "user-fixed original logistic; earlier-campaign fit only; no nested search"
     return (summaries, scores, pd.DataFrame(metrics),
             pd.concat(allocations, ignore_index=True), stochastic)
 
@@ -212,7 +213,7 @@ def run_policy_search(history, num, cat, out, draws=2000):
                     uncertainty="Validation winner is selection-biased; intervals condition on fixed models and allocations.",
                     grid=POLICY_GRID, additional_profit_model=PROFIT_CANDIDATES["HURDLE_XGB_HALF"],
                     random_seed=42, bootstrap_draws=draws, OMP_NUM_THREADS=os.environ.get("OMP_NUM_THREADS", "unset"))
-    decision["purchase_baseline_selection"] = "nested prior-campaign selection and refit of the same purchase-model procedure used for July"
+    decision["purchase_baseline_selection"] = "user-fixed original logistic from config/logistic_baseline.json; earlier-campaign fit only; no nested search"
     decision["execution"] = "fresh spawn process per campaign; 300-second worker timeout; native OpenMP settings unchanged"
     # This file is serialized before any CP07 target values are evaluated.
     (out/"selection.json").write_text(json.dumps(decision, indent=2)+"\n")

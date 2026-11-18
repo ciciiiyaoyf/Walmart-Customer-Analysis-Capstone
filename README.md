@@ -4,7 +4,7 @@ This project recommends `NO_OFFER`, `PCT_10`, `PCT_20`, or `FREE_SHIP` for each 
 
 **Read [the validation report](docs/VALIDATION_REPORT.md) for measured before/after results and limitations.** July totals in the submission and dashboard are model projections. An optimizer ranking first under the predictions it maximizes is not independent evidence of profitable targeting.
 
-**One logistic regression supplies the purchase-propensity baseline.** It ranks customers by predicted purchase probability; its CP07 average precision is **0.2367** and recall is **50.10%** at the frozen development threshold. Step 05 uses the fixed configuration and does not require fitting a second original/selected baseline. Earlier tuning and before/after comparisons remain optional experiment records in `outputs/experiments/propensity/` and the validation report.
+**The original logistic regression supplies the one purchase-propensity baseline.** It ranks customers by predicted purchase probability; its CP07 average precision is **0.2323** and recall is **60.88%** at the frozen development threshold. Step 05 uses the original preprocessing and `C=0.01`, as recorded in `config/logistic_baseline.json`. The more complex transformed/interacted version remains an optional experiment record in `outputs/experiments/propensity/`; it is not used for current baseline scoring. Restoring the simpler specification follows the project owner's choice after inspecting the retrospective comparison, not evidence of a new accuracy gain. See [the restoration verification](outputs/original_logistic_validation.json) for execution checks and forecast changes.
 
 **Measured outcome of the performance revision:** two-part XGBoost reduces CP07 NCM RMSE from **63.3694 to 62.7385** (1.00%) and MAE from **27.4111 to 26.4806** (3.39%). A simple constrained `RANDOM_FREE_SHIP` policy wins development validation and replaces personalized allocation. Averaging feasible random recipient sets, its retrospective CP07 DR gain is **$7.90 per customer** versus no offer, and **$3.93** versus the original feasible policy, with paired 95% interval **[-$2.12, $10.44]**. Policy superiority remains uncertain.
 
@@ -90,7 +90,7 @@ An action model estimates `E[NCM | customer features, action]`. Estimated increm
 
 Squared-error fitting and RMSE are appropriate diagnostics for **expected dollar NCM**. MAE and R² supply additional descriptions; R² and RMSE give equivalent rankings on the same observations. These factual metrics do not establish that the policy chooses the best action. Matching average effects on the same rows used for fitting is only an in-sample plausibility check.
 
-The predictive search compares 14 fixed expected-NCM configurations on rolling CP04-CP06 validation, fitting prior campaigns only. Minimum pooled factual RMSE selects `HURDLE_XGB_HALF`: pooled XGBoost purchase probability times a signed purchaser-margin estimate, shrunk 50% toward each training arm's purchaser mean. It handles the roughly 88% nonbuyer zeros without discarding negative profit. The separate logistic baseline uses signed-log feature transforms, compact interactions, `C=0.01`, and no extra probability calibration. These settings were established in earlier development experiments; the main workflow loads them without repeating the search. The project requires a purchase-propensity baseline; logistic regression is the implemented choice, not a mandated algorithm.
+The predictive search compares 14 fixed expected-NCM configurations on rolling CP04-CP06 validation, fitting prior campaigns only. Minimum pooled factual RMSE selects `HURDLE_XGB_HALF`: pooled XGBoost purchase probability times a signed purchaser-margin estimate, shrunk 50% toward each training arm's purchaser mean. It handles the roughly 88% nonbuyer zeros without discarding negative profit. The separate original logistic baseline retains all 43 registered customer features, imputes and standardizes numeric inputs, encodes categories, and uses `C=0.01`. It adds no log transformations, interactions, or extra probability calibration. The project requires a purchase-propensity baseline; logistic regression is the implemented choice, not a mandated algorithm.
 
 A separate development search compares 21 feasible allocation rules, including model optimizers, pooled/segment rules, and simple baselines. Maximum pooled development DR value selects `RANDOM_FREE_SHIP`. Prediction and allocation winners answer different questions. The previous rule that kept the original unless a multiple-comparison-adjusted interval excluded zero has been replaced by transparent validation ranking with uncertainty reported separately. All choices are saved before the CP07 retrospective comparison. See `outputs/experiments/` for the full search results.
 
@@ -106,13 +106,13 @@ The logistic baseline's max-F1 threshold is chosen from out-of-time CP04-CP06 pr
 
 | Purchase diagnostic on CP07 | Logistic baseline |
 |---|---|
-| Average precision | 0.236708 |
-| Recall | 50.10% |
-| Precision | 21.49% |
-| Classified-positive share | 30.74% |
-| Frozen development threshold | 0.15878 |
+| Average precision | 0.232325 |
+| Recall | 60.88% |
+| Precision | 20.20% |
+| Classified-positive share | 39.74% |
+| Frozen development threshold | 0.12903 |
 
-The baseline is evaluated on 3,800 CP07 assignments, including 501 purchasers. At this threshold it flags 1,168 customers, of whom 251 purchased. A different threshold would change recall and precision; this diagnostic threshold does not set promotion recipients. The saved model is refitted on CP01-CP07 for July scoring. Historical comparisons with the earlier raw-feature specification are documented separately in the validation report; they do not establish a reliable average-precision improvement or a second required baseline.
+The baseline is evaluated on 3,800 CP07 assignments, including 501 purchasers. At this threshold it flags 1,510 customers, of whom 305 purchased. A different threshold would change recall and precision; this diagnostic threshold does not set promotion recipients. The saved model is refitted on CP01-CP07 for July scoring. Historical comparisons with the more complex experimental specification are documented separately in the validation report; they did not establish a reliable average-precision improvement or a need for a second baseline. The apparent recall difference included different numbers of flagged customers, so it should not be described as an equal-capacity ranking improvement.
 
 The continuous expected-NCM forecast still uses RMSE, MAE and R². Additional files under `outputs/tables/` make its limitations visible:
 
@@ -136,7 +136,7 @@ Run `python scripts/build_metric_diagnostics.py` to refresh the additional diagn
 - Outcome orders are completed, belong to the same customer and campaign, and occur in `[send_ts, send_ts + 14 days)`.
 - `NCM = net_revenue - cogs - shipping_cost - applicable_refunds`. Net revenue already includes discounts and shipping revenue; promotion cost is not subtracted twice.
 - The default `in_window` return rule counts refunds inside the 14-day window. `all_linked` is an alternative accounting sensitivity. Early, late, and total refunds are reconciled separately. The end-to-end return sensitivity compares 14-day and 45-day accrued-return targets on identical mature cohorts, using as-of cutoffs; it does not silently treat every eventual refund as available in historical training. The report distinguishes retrospective CP06 sensitivity from the primary CP07 evaluation.
-- FREE_SHIP promotion cost is an inferred waived fee, not a recorded field. Observed paid/free baskets bracket a threshold between $74.99 and $75.08; they do not identify an exact tariff.
+- FREE_SHIP promotion cost is an inferred waived fee. The supplied orders contain 601 positive customer-paid shipping fees, all $5.99. Completed non-FREE_SHIP orders bracket an ordinary free-shipping threshold above $74.99 and at or below $75.08 in gross basket value; this is not a required basket range. The project explicitly assumes a **$75 cutoff**, as requested by its owner and recorded in `config/shipping_cost_assumptions.json`. This fits the observed boundary; the source package supplies no exact numeric tariff. Applying the observed $5.99 to an eligible FREE_SHIP order below $75 as its unobserved fee without the offer remains an assumption.
 - Purchase propensity predicts buying under the historical offer mixture. It does not estimate buying without an offer or causal uplift.
 
 ## July support and constraints
