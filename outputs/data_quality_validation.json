@@ -1,0 +1,102 @@
+{
+  "date": "2026-11-17",
+  "base_commit": "7241514fd1b5ba7047cba80994bb8f24ffd77f96",
+  "archive_filename": "WalmartData.zip",
+  "archive_sha256": "428e7023bfae583e6f211d932def9d2a3aa96332862b5af80b1bc973e83a741f",
+  "raw_file_hashes": {
+    "campaigns.csv": "27850414bf2bcabfbc956702eb3e76c3df9685ff5624072cb2f6de65a48ca198",
+    "customers.csv": "2031f29189a2d1d6bb6c5c1a5088ae30e60a5eb72d0a62dcf3626a7d15e322ec",
+    "email_events.csv": "aa89f001e0ce81593e6a2e300a064943114855703246f0984eb3bb39658faf2a",
+    "historical_assignments.csv": "ed3ed7ef6eef426709e581c0cdb9de0c6deff12d0ff139bbfbdd46809d572c57",
+    "offer_catalog.csv": "c8651109aced8b835f0e6828ebfd24a4cebf4aba0225035e105e4019b95cc871",
+    "orders.csv": "4efcc19d464879952674acc4f22a191a4bdce8665f465f08137e6c74c6513244",
+    "order_items.csv": "b3289d73a08e7ad93b3df25bc7c0715cb9dba31e81183fc9fef5c75d92e7ccdb",
+    "policy_scoring_population.csv": "2f0be7f03ce3c518be521cb1dd805ad9dcac429995567472dfc24652cd860df4",
+    "products.csv": "ba9233f34407e5b03d670074f77f8abb7202d634e8d9fd38d0156f9e2e2b0926",
+    "returns.csv": "7ff853deed8efea42a0b9837e45306a8002b97e609ee0736f036aa1f29a7795a",
+    "web_sessions.csv": "aec144766673fed43fd7b582a51ec321841a73abc8c328ac92b3bc5aefb34131"
+  },
+  "notebooks_executed": [
+    "01_data_validation.ipynb"
+  ],
+  "execution_method": "All code cells executed sequentially in IPython in an isolated source workspace; no external Jupyter kernel required.",
+  "raw_files_unchanged": true,
+  "quality_checks": 83,
+  "quality_status_counts": {
+    "PASS": 80,
+    "WARN": 3
+  },
+  "cleaned_snapshot_comparison": [
+    {
+      "table": "returns",
+      "rows": 693,
+      "values_match": true
+    },
+    {
+      "table": "products",
+      "rows": 180,
+      "values_match": true
+    },
+    {
+      "table": "web_sessions",
+      "rows": 18816,
+      "values_match": true
+    },
+    {
+      "table": "policy_scoring_population",
+      "rows": 2776,
+      "values_match": true
+    },
+    {
+      "table": "orders",
+      "rows": 6984,
+      "values_match": true
+    },
+    {
+      "table": "order_items",
+      "rows": 16146,
+      "values_match": true
+    },
+    {
+      "table": "offer_catalog",
+      "rows": 4,
+      "values_match": true
+    },
+    {
+      "table": "historical_assignments",
+      "rows": 26600,
+      "values_match": true
+    },
+    {
+      "table": "campaigns",
+      "rows": 8,
+      "values_match": true
+    },
+    {
+      "table": "customers",
+      "rows": 15000,
+      "values_match": true
+    },
+    {
+      "table": "email_events",
+      "rows": 18567,
+      "values_match": true
+    }
+  ],
+  "comparison_rules": "Timestamp units normalized to nanoseconds; equivalent nullable dtypes allowed; numeric absolute tolerance 1e-12 and relative tolerance 0. Existing committed clean Parquet files are not replaced.",
+  "downstream_models_rerun": false,
+  "scope": "Input validation and regression-test hardening only; all eleven rebuilt clean tables match preceding saved values under the documented comparison rules.",
+  "regression_suite": {
+    "command": "python -m pytest tests -q",
+    "passed": 148,
+    "new_data_quality_cases": 18,
+    "new_data_quality_test_file": "tests/test_data_quality.py"
+  },
+  "environment": {
+    "python": "3.13.9",
+    "pandas": "2.2.3",
+    "numpy": "2.3.5",
+    "pytest": "8.4.2"
+  },
+  "notebook_code_sha256": "45b1023f7913b041840b216b23a70126e0fe2a80160af3b08048244dd126edc4"
+}

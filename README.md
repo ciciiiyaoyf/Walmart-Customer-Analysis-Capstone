@@ -42,7 +42,7 @@ Raw CSVs are intentionally excluded from GitHub. If using the committed cleaned 
 python run_pipeline.py --from-clean
 ```
 
-The correction was verified by executing Steps 02-10 from the committed cleaned snapshot; the original raw CSVs were unavailable. This verifies transformations after cleaning, not the raw inputs. An explicit contiguous range remains available, for example `python run_pipeline.py 06 10`. See [VALIDATION_REPORT.md](docs/VALIDATION_REPORT.md) for validation commands and then run the tests and dashboard:
+The earlier model/coverage corrections were verified by executing Steps 02-10 from the committed cleaned snapshot; the original raw CSVs were unavailable at that time. The original ZIP was subsequently located, and the November 17, 2026 data-quality verification reran Step 01 against all 11 raw CSVs and compared every cleaned table with the preceding snapshot. See [the data-quality verification record](outputs/data_quality_validation.json) for that separate execution scope. An explicit contiguous range remains available, for example `python run_pipeline.py 06 10`. See [VALIDATION_REPORT.md](docs/VALIDATION_REPORT.md) for model-validation commands and then run the tests and dashboard:
 
 ```bash
 python -m pytest tests
@@ -67,6 +67,20 @@ The final `policy_submission.csv` is also copied to `outputs/final/`. Its column
 | 10 | `10_generate_outputs` | Submission, feasible baseline projections, policy audit, and measurement assignment |
 
 The notebooks read saved outputs from previous steps. Shared modules in `src/` contain feature, outcome, model, inference, and allocation logic so validation can use the same definitions as July scoring. See the [updated walkthrough](docs/Walmart_Pipeline_Walkthrough.md).
+
+## Data quality and record handling
+
+[Data quality and record handling](docs/DATA_QUALITY_AND_RECORD_HANDLING.md) maps the assignment requirements to executable checks and documents orders/cancellations, partial and late returns, repeated campaign exposures, and exact versus conflicting duplicate records.
+
+Step 01 checks identifiers, customer-campaign uniqueness, foreign keys, timestamp validity, finite financial amounts, cancelled-order zeros, revenue/item-cost reconciliation, cumulative refunds, and offer consistency. Invalid schema/keys stop before downstream joins; any remaining FAIL stops before cleaned tables are saved. Expected warnings remain visible in [the quality registry](outputs/tables/data_quality_summary.csv).
+
+The regression suite deliberately supplies bad inputs to the actual notebook validation cells. It verifies rejection of duplicate keys, conflicting item rows, broken relationships, mismatched email identities, inconsistent financials, infinite amounts, excessive cumulative refunds, and refunds preceding an order. A valid-input case verifies legitimate repeat campaign customers and removal of exact item duplicates. Existing tests separately exercise future-event exclusion, refund aggregation, and label maturity.
+
+```bash
+python -m pytest -q tests/test_data_quality.py tests/test_feature_observation_scope.py tests/test_outcomes.py tests/test_diagnostics.py
+```
+
+These tests use portable fixtures derived from the committed clean snapshot; they do not require the raw ZIP. Revalidating the original files requires placing the supplied CSVs in `data/raw/` and running `python run_pipeline.py 01 01`. Passing these checks establishes the documented processing behavior, not complete transaction-source coverage or better model accuracy.
 
 ## What the scores mean
 
@@ -114,6 +128,7 @@ Run `python scripts/build_metric_diagnostics.py` to refresh the additional diagn
 
 ## Timing and financial assumptions
 
+- The original package specifies Pacific Time and U.S. dollars. Timestamp values are parsed as the supplied local clock times; they are not reinterpreted as UTC.
 - Historical events must precede `send_ts`; July events must occur on or before `policy_as_of_ts`. Future-event perturbation tests check timestamped feature families.
 - Customer tier, membership, preferences, and related profile fields lack effective-date histories. Historical availability remains an explicit assumption; timestamp filtering cannot verify it.
 - Outcome orders are completed, belong to the same customer and campaign, and occur in `[send_ts, send_ts + 14 days)`.
@@ -166,6 +181,7 @@ Specify the NCM/return window, analysis, stopping rule, and power before launch.
 - `outputs/models/`: fitted artifacts and model metadata.
 - `outputs/figures/`: generated charts.
 - `docs/VALIDATION_REPORT.md`: authoritative revision scope, commands, before/after measurements, and remaining limitations.
+- `docs/DATA_QUALITY_AND_RECORD_HANDLING.md`: data-quality checks, exact test names, and record-handling rules.
 - `docs/Walmart_Pipeline_Walkthrough.md`: current explanation; regenerate its PDF after editing.
 - `docs/Pipeline_Guide.pdf`: historical guide retained for provenance; **superseded** by the revised walkthrough and validation report. Do not use its model/results claims as current guidance.
 - `dashboard/app.py`: saved-results dashboard separating projections and held-out evaluation.
