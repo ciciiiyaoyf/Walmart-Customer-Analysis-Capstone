@@ -1,4 +1,5 @@
 {
+  "model": "logistic_baseline",
   "target": "purchase_14d",
   "C": 0.01,
   "configuration": {
@@ -184,6 +185,7 @@
     "CP07"
   ],
   "evaluation_status": "retrospective; CP07 was previously inspected",
+  "configuration_source": "outputs/tables/logistic_selected_config.json; prior development experiment",
   "selection_rule": "maximize mean out-of-time average precision with log_loss <= original + .001 and Brier <= original + .0005; ROC-AUC tie-break. Select nested temporal sigmoid only if both log-loss and Brier improve.",
   "f1_threshold_from_valid": 0.15877993769334672,
   "headline_metrics": [
@@ -191,21 +193,21 @@
     "recall"
   ],
   "threshold_selection": {
-    "original": 0.12903448374883927,
-    "selected": 0.15877993769334672,
+    "model": "logistic_baseline",
+    "threshold": 0.15877993769334672,
     "campaigns": [
       "CP04",
       "CP05",
       "CP06"
     ],
     "rule": "maximum F1 on pooled out-of-time development predictions; lowest threshold wins ties",
-    "selected_config": {
+    "configuration": {
       "mode": "log_interactions",
       "C": 0.01,
       "calibration": "none"
     },
     "frozen_before_cp07": true,
-    "interpretation": "Per-model illustrative classification thresholds; not promotion allocation rules"
+    "interpretation": "Classification diagnostic threshold; not a promotion allocation rule"
   },
   "probability_interpretation": "purchase under historical treatment mixture, not untreated purchase probability"
 }

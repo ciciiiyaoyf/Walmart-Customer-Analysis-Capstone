@@ -4,7 +4,9 @@ This project recommends `NO_OFFER`, `PCT_10`, `PCT_20`, or `FREE_SHIP` for each 
 
 **Read [the validation report](docs/VALIDATION_REPORT.md) for measured before/after results and limitations.** July totals in the submission and dashboard are model projections. An optimizer ranking first under the predictions it maximizes is not independent evidence of profitable targeting.
 
-**Measured outcome of the performance revision:** two-part XGBoost reduces CP07 NCM RMSE from **63.3694 to 62.7385** (1.00%) and MAE from **27.4111 to 26.4806** (3.39%). Logistic regression's average precision increases from **0.2323 to 0.2367**, while recall falls from **60.88% to 50.10%** at the models' respective development-selected thresholds. The average-precision interval includes no improvement; the recall decline is clear in this retrospective comparison. The selected model is not uniformly better. A simple constrained `RANDOM_FREE_SHIP` policy wins development validation and replaces personalized allocation. Averaging feasible random recipient sets, its retrospective CP07 DR gain is **$7.90 per customer** versus no offer, and **$3.93** versus the original feasible policy, with paired 95% interval **[-$2.12, $10.44]**. Policy superiority remains uncertain.
+**One logistic regression supplies the purchase-propensity baseline.** It ranks customers by predicted purchase probability; its CP07 average precision is **0.2367** and recall is **50.10%** at the frozen development threshold. Step 05 uses the fixed configuration and does not require fitting a second original/selected baseline. Earlier tuning and before/after comparisons remain optional experiment records in `outputs/experiments/propensity/` and the validation report.
+
+**Measured outcome of the performance revision:** two-part XGBoost reduces CP07 NCM RMSE from **63.3694 to 62.7385** (1.00%) and MAE from **27.4111 to 26.4806** (3.39%). A simple constrained `RANDOM_FREE_SHIP` policy wins development validation and replaces personalized allocation. Averaging feasible random recipient sets, its retrospective CP07 DR gain is **$7.90 per customer** versus no offer, and **$3.93** versus the original feasible policy, with paired 95% interval **[-$2.12, $10.44]**. Policy superiority remains uncertain.
 
 The saved seed-42 allocation happens to produce a more favorable CP07 estimate: $12.74 versus no offer and a paired $8.77 improvement over the original, interval [$0.36, $18.33]. That result conditions on the chosen recipients. It must not be presented as a reliable gain across recipient randomizations or as observed July profit.
 
@@ -59,7 +61,7 @@ The final `policy_submission.csv` is also copied to `outputs/final/`. Its column
 | 02 | `02_build_historical_features` | Build 43 pre-send predictors plus separate transaction-coverage and historical-reference diagnostics |
 | 03 | `03_construct_14_day_outcomes` | Construct purchases, NCM, promotion cost, and explicit refund-timing outcomes |
 | 04 | `04_business_analysis` | Descriptive KPIs and exploration-only effects with customer-clustered uncertainty |
-| 05 | `05_logistic_propensity_model` | Logistic purchase model; average precision and recall using frozen development thresholds |
+| 05 | `05_logistic_propensity_model` | One logistic purchase baseline; average precision and recall using a frozen development threshold |
 | 06 | `06_tlearner_xgboost` | Two-part XGBoost, profit bias/calibration and component diagnostics, separate policy selection |
 | 07 | `07_score_july_population` | Rebuild features and coverage diagnostics at each July cutoff and score each action |
 | 08 | `08_estimate_promotion_cost` | Expected promotion cost per customer and action |
@@ -88,7 +90,7 @@ An action model estimates `E[NCM | customer features, action]`. Estimated increm
 
 Squared-error fitting and RMSE are appropriate diagnostics for **expected dollar NCM**. MAE and R² supply additional descriptions; R² and RMSE give equivalent rankings on the same observations. These factual metrics do not establish that the policy chooses the best action. Matching average effects on the same rows used for fitting is only an in-sample plausibility check.
 
-The predictive search compares 14 fixed expected-NCM configurations on rolling CP04-CP06 validation, fitting prior campaigns only. Minimum pooled factual RMSE selects `HURDLE_XGB_HALF`: pooled XGBoost purchase probability times a signed purchaser-margin estimate, shrunk 50% toward each training arm's purchaser mean. It handles the roughly 88% nonbuyer zeros without discarding negative profit. The logistic search considers feature transforms, compact interactions, regularization, and nested probability calibration; selection favors average precision subject to log-loss/Brier safeguards. The project requires a purchase-propensity baseline; logistic regression is the implemented choice, not a mandated algorithm.
+The predictive search compares 14 fixed expected-NCM configurations on rolling CP04-CP06 validation, fitting prior campaigns only. Minimum pooled factual RMSE selects `HURDLE_XGB_HALF`: pooled XGBoost purchase probability times a signed purchaser-margin estimate, shrunk 50% toward each training arm's purchaser mean. It handles the roughly 88% nonbuyer zeros without discarding negative profit. The separate logistic baseline uses signed-log feature transforms, compact interactions, `C=0.01`, and no extra probability calibration. These settings were established in earlier development experiments; the main workflow loads them without repeating the search. The project requires a purchase-propensity baseline; logistic regression is the implemented choice, not a mandated algorithm.
 
 A separate development search compares 21 feasible allocation rules, including model optimizers, pooled/segment rules, and simple baselines. Maximum pooled development DR value selects `RANDOM_FREE_SHIP`. Prediction and allocation winners answer different questions. The previous rule that kept the original unless a multiple-comparison-adjusted interval excluded zero has been replaced by transparent validation ranking with uncertainty reported separately. All choices are saved before the CP07 retrospective comparison. See `outputs/experiments/` for the full search results.
 
@@ -100,17 +102,17 @@ The original CP07 unconstrained policy-value diagnostic is historical context, n
 
 The purchase-model headlines are **average precision** and **recall**. Average precision summarizes precision-recall ranking over thresholds. Recall is the fraction of actual purchasers classified positive at a particular threshold; it can reach 100% by predicting everyone positive. Report the frozen threshold, precision and predicted-positive share beside recall.
 
-For the original and selected logistic models, the same max-F1 rule chooses each model's threshold from its own out-of-time CP04-CP06 predictions. Thresholds are saved before CP07 evaluation and held fixed in paired bootstrap draws. `purchase_headline_metrics.csv` contains the comparison; `purchase_thresholds.json` records the thresholds and provenance. The canonical field is `average_precision`; legacy `pr_auc` is retained as an identical compatibility alias, not trapezoidal PR area. Log loss/Brier remain supporting probability-quality checks and selection safeguards, rather than headline metrics.
+The logistic baseline's max-F1 threshold is chosen from out-of-time CP04-CP06 predictions and saved before CP07 evaluation. `purchase_headline_metrics.csv` contains this one baseline's results; `purchase_thresholds.json` records its threshold and provenance. The canonical field is `average_precision`; legacy `pr_auc` is retained as an identical compatibility alias, not trapezoidal PR area. Log loss/Brier remain supporting probability-quality checks rather than headline metrics.
 
-| Purchase diagnostic on CP07 | Original refit | Selected logistic |
-|---|---|---|
-| Average precision | 0.232325 | 0.236708 |
-| Recall | 60.88% | 50.10% |
-| Precision | 20.20% | 21.49% |
-| Classified-positive share | 39.74% | 30.74% |
-| Frozen development threshold | 0.12903 | 0.15878 |
+| Purchase diagnostic on CP07 | Logistic baseline |
+|---|---|
+| Average precision | 0.236708 |
+| Recall | 50.10% |
+| Precision | 21.49% |
+| Classified-positive share | 30.74% |
+| Frozen development threshold | 0.15878 |
 
-Both models are evaluated on the same 3,800 CP07 assignments, including 501 purchasers. The selected model has slightly higher average precision and precision, but lower recall at their respective development-selected thresholds: it classifies fewer customers positive and misses more purchasers. The recall difference is **-10.78 percentage points**, with paired 95% interval **[-13.52, -8.28] percentage points** conditional on the fitted models and frozen thresholds. This is a tradeoff, not uniform model improvement; a different threshold would change recall and precision.
+The baseline is evaluated on 3,800 CP07 assignments, including 501 purchasers. At this threshold it flags 1,168 customers, of whom 251 purchased. A different threshold would change recall and precision; this diagnostic threshold does not set promotion recipients. The saved model is refitted on CP01-CP07 for July scoring. Historical comparisons with the earlier raw-feature specification are documented separately in the validation report; they do not establish a reliable average-precision improvement or a second required baseline.
 
 The continuous expected-NCM forecast still uses RMSE, MAE and R². Additional files under `outputs/tables/` make its limitations visible:
 

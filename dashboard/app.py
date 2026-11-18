@@ -260,43 +260,40 @@ with tab_models:
     st.info("The model comparisons below measure the earlier model revision. The subsequent purchase-history "
             "coverage correction preserves the model input values and adds no accuracy gain. The additional "
             "metrics diagnose those same predictions; adding a metric is not a model improvement.")
-    st.subheader("Logistic regression: purchase probabilities")
-    st.caption("Both the original refit and the selected model train through CP06 and predict CP07. "
+    st.subheader("Logistic regression baseline: purchase probabilities")
+    st.caption("One logistic regression baseline trains through CP06 and predicts CP07 for evaluation. "
                "Average precision summarizes the precision-recall ranking. Recall is the fraction of actual "
                "purchasers classified positive at a frozen development-selected threshold. "
-               "CP07 is a retrospective audit, and the models were selected on CP04–06.")
+               "CP07 is a retrospective audit. The same model specification is refitted through CP07 for July scoring.")
     if purchase_headline.empty:
         st.info("Rebuild notebook 05 to display average precision and development-threshold recall.")
     else:
-        fair = purchase_headline[purchase_headline.model.eq("original_fair_refit")]
-        chosen = purchase_headline[purchase_headline.model.eq("selected")]
-        if not fair.empty and not chosen.empty:
-            cols = st.columns(2)
-            for column, key, label in zip(cols, ["average_precision", "recall"], ["Average precision", "Recall"]):
-                column.metric(label, f"{chosen.iloc[0][key]:.5f}",
-                              f"{chosen.iloc[0][key]-fair.iloc[0][key]:+.5f} versus original refit")
+        baseline = purchase_headline.iloc[0]
+        cols = st.columns(2)
+        cols[0].metric("Average precision", f"{baseline.average_precision:.5f}")
+        cols[1].metric("Recall", f"{baseline.recall:.2%}")
         headline_columns = ["model", "n", "positives", "average_precision", "recall", "precision",
                             "threshold", "predicted_positive_share", "tp", "fp", "fn", "tn"]
         st.dataframe(purchase_headline[[c for c in headline_columns if c in purchase_headline]],
                      width="stretch", hide_index=True)
-        st.caption("Each model's threshold maximizes F1 on its own out-of-time CP04–06 predictions, before CP07 "
+        st.caption("The baseline's threshold maximizes F1 on its out-of-time CP04–06 predictions, before CP07 "
                    "evaluation. Recall must be read with precision and the classified-positive share: predicting "
                    "everyone as a purchaser would produce 100% recall. These classifications do not choose promotion recipients.")
-    if not logistic_intervals.empty:
-        headline_intervals = logistic_intervals[logistic_intervals.metric.isin(["average_precision", "recall"])]
-        if not headline_intervals.empty:
-            st.caption("Paired differences are selected minus original; higher is better for both headline metrics. "
-                       "Bootstrap draws keep the development thresholds fixed. An interval spanning zero does not "
-                       "establish a clear improvement.")
-            st.dataframe(headline_intervals, width="stretch", hide_index=True)
     with st.expander("Supporting purchase-probability diagnostics"):
-        st.write("Log loss and Brier score remain probability-quality safeguards during model selection. "
+        st.write("Log loss, Brier score and ROC-AUC describe the baseline's probability and ranking quality. "
                  "They do not replace the headline average precision and recall metrics.")
+        if not purchase_headline.empty:
+            st.dataframe(purchase_headline[["model", "log_loss", "brier", "roc_auc"]],
+                         width="stretch", hide_index=True)
+    with st.expander("Archived logistic development experiment (optional)"):
+        st.write("The original-versus-revised comparison records an earlier development experiment. "
+                 "Only the revised specification is used as the project's logistic baseline. "
+                 "The small average-precision change did not establish a clear improvement; recall at "
+                 "the separately chosen thresholds declined. This experiment is not a second operational baseline.")
         if not logistic_comparison.empty:
             st.dataframe(logistic_comparison, width="stretch", hide_index=True)
         if not logistic_intervals.empty:
-            st.dataframe(logistic_intervals[~logistic_intervals.metric.isin(["average_precision", "recall", "pr_auc"])],
-                         width="stretch", hide_index=True)
+            st.dataframe(logistic_intervals, width="stretch", hide_index=True)
     st.subheader("XGBoost: expected net contribution")
     st.caption("The selected two-part model combines purchase probability with expected signed profit among purchasers. "
                "The margin prediction is partially pooled toward the treatment's purchaser mean to reduce noise. "

@@ -1,10 +1,10 @@
 # PromoPilot pipeline walkthrough
 
-Revised November 13, 2026. This document explains the ten implemented steps and how to interpret their outputs. The accompanying **VALIDATION_REPORT.md** records the actual revision commands, before/after measurements, selected model, and remaining limitations. Its measured results take precedence over historical example numbers in older reports.
+Revised November 18, 2026. This document explains the ten implemented steps and how to interpret their outputs. The accompanying **VALIDATION_REPORT.md** records the actual revision commands, before/after measurements, current models, and remaining limitations. Its measured results take precedence over historical example numbers in older reports.
 
 The business objective is to recommend one of NO_OFFER, PCT_10, PCT_20, or FREE_SHIP for every July customer, maximizing expected incremental 14-day net contribution margin (NCM) under budget and customer-experience constraints.
 
-**Measured performance revision:** the two-part XGBoost model reduces CP07 RMSE from $63.3694 to $62.7385 and MAE from $27.4111 to $26.4806. Logistic average precision rises from 0.2323 to 0.2367, with uncertainty that includes zero improvement, while recall falls from 60.88% to 50.10% at the respective development-selected thresholds. The selected logistic model is not uniformly better. Separately, RANDOM_FREE_SHIP wins development policy selection. Averaging feasible random recipient sets, CP07 DR gain is $7.90 per customer versus no offer and $3.93 versus the original policy, with paired 95% interval [-$2.12, $10.44]. Policy superiority remains uncertain. The saved seed-42 allocation's more favorable $12.74 estimate depends partly on recipient luck. Full comparisons are in VALIDATION_REPORT.md.
+**The project uses one logistic purchase-propensity baseline**, with CP07 average precision 0.2367 and recall 50.10% at its frozen threshold. Earlier logistic versions are experiment history, not additional required baselines. The two-part XGBoost model reduces CP07 RMSE from $63.3694 to $62.7385 and MAE from $27.4111 to $26.4806. Separately, RANDOM_FREE_SHIP wins development policy selection. Averaging feasible random recipient sets, CP07 DR gain is $7.90 per customer versus no offer and $3.93 versus the original policy, with paired 95% interval [-$2.12, $10.44]. Policy superiority remains uncertain. The saved seed-42 allocation's more favorable $12.74 estimate depends partly on recipient luck. Historical comparisons are in VALIDATION_REPORT.md.
 
 The first correction pass repaired evaluation and accounting while retaining the original model. The later performance revision changed both models and allocation using development data, then measured their retrospective CP07 behavior. The transaction-coverage correction adds explicit observed-history names and separate coverage diagnostics while preserving all 43 model predictor values and their order. The current metric extension adds average precision/recall reporting, offer-level profit bias/calibration, and separate purchase/margin checks. Neither diagnostic extension adds an accuracy gain; the reported 1.00% RMSE and 3.39% MAE improvements belong to the preceding model revision.
 
@@ -22,7 +22,7 @@ There are three distinct outputs:
 | 02 | 02_build_historical_features | Historical pre-send features, schema, transaction coverage and reference-window audit |
 | 03 | 03_construct_14_day_outcomes | Historical outcomes and joined feature/outcome table |
 | 04 | 04_business_analysis | Descriptive KPIs and exploration-only effect estimates |
-| 05 | 05_logistic_propensity_model | Purchase-propensity model and diagnostics |
+| 05 | 05_logistic_propensity_model | One logistic purchase-propensity baseline and diagnostics |
 | 06 | 06_tlearner_xgboost | Expected NCM models, predictions, and diagnostics |
 | 07 | 07_score_july_population | July features, coverage and reference-window audit, customer-action NCM scores |
 | 08 | 08_estimate_promotion_cost | Expected costs and long customer-action value table |
@@ -106,23 +106,23 @@ A positive point estimate is not a demonstrated positive effect. In the original
 
 ## 6. Step 05: purchase propensity
 
-The project requires a purchase-propensity baseline; it does not mandate logistic regression as the algorithm. Logistic regression is the implemented baseline. Preprocessing is fitted inside each training fold. Rolling CP04-CP06 development compares raw and transformed predictors, compact interactions, regularization, and nested temporal sigmoid calibration. Selection maximizes mean average precision with log-loss and Brier safeguards. Calibration is retained only if it improves both probability scores on development data. The frozen winner is refitted on CP01-CP06 and evaluated on CP07, then refitted for deployment.
+The project requires a purchase-propensity baseline; it does not mandate logistic regression as the algorithm. One logistic regression is the implemented baseline. Its job is to estimate each customer's probability of a qualifying purchase in the next 14 days so the propensity policy can rank customers. Step 05 loads the fixed configuration, fits preprocessing only on each fold's training rows, evaluates on CP07 after fitting CP01-CP06, and finally refits on CP01-CP07 for July scoring. The temporal fits evaluate the same model specification; they are not separate baseline methods.
 
-The selected model uses signed-log transformations and compact interactions with C = 0.01 and no additional calibration. The headline purchase metrics are average precision and recall. CP07 average precision changes from 0.232325 to 0.236708. Its paired 95% change interval is [-0.00445, 0.01321], so a reliable large improvement is not established. The headline comparison and supporting classification counts are saved in purchase_headline_metrics.csv.
+The baseline uses signed-log transformations and compact interactions with C = 0.01 and no additional calibration. These settings came from earlier development experiments; rerunning that search or fitting an older original model is not part of the main baseline workflow. Optional experiment code and comparison records remain in scripts/experiment_propensity.py and outputs/experiments/propensity/. The headline metrics and supporting classification counts for the one current baseline are saved in purchase_headline_metrics.csv.
 
-| Purchase diagnostic on CP07 | Original refit | Selected logistic |
-|---|---|---|
-| Average precision | 0.232325 | 0.236708 |
-| Recall | 60.88% | 50.10% |
-| Precision | 20.20% | 21.49% |
-| Classified-positive share | 39.74% | 30.74% |
-| Frozen development threshold | 0.12903 | 0.15878 |
+| Purchase diagnostic on CP07 | Logistic baseline |
+|---|---|
+| Average precision | 0.236708 |
+| Recall | 50.10% |
+| Precision | 21.49% |
+| Classified-positive share | 30.74% |
+| Frozen development threshold | 0.15878 |
 
-Both models are evaluated on the same 3,800 CP07 assignments, including 501 purchasers. The selected model has slightly higher average precision and precision, but lower recall at their respective development-selected thresholds: it classifies fewer customers positive and misses more purchasers. The recall difference is **-10.78 percentage points**, with paired 95% interval **[-13.52, -8.28] percentage points** conditional on the fitted models and frozen thresholds. This is a tradeoff, not uniform model improvement; a different threshold would change recall and precision.
+Evaluation uses 3,800 CP07 assignments, including 501 purchasers. At the frozen threshold, the baseline flags 1,168 customers; 251 of them purchase. Recall is 251/501 and precision is 251/1,168. These are measured purchase-prediction results, not proof that giving those customers an offer causes additional profit.
 
-Average precision summarizes precision-recall ranking over thresholds. Recall is the fraction of actual purchasers classified positive at a frozen threshold. For each original/selected model, the same max-F1 rule selects its threshold from that model's out-of-time CP04-CP06 predictions, before CP07 evaluation. The thresholds are serialized in purchase_thresholds.json and remain fixed during paired bootstrap draws. Recall is reported with precision and the classified-positive share, because predicting everyone positive would trivially achieve 100% recall. These binary classifications are diagnostic; they do not determine promotion recipients.
+Average precision summarizes precision-recall ranking over thresholds. Recall is the fraction of actual purchasers classified positive at a frozen threshold. The max-F1 rule chooses the baseline's threshold from its out-of-time CP04-CP06 predictions, before CP07 evaluation, and saves it in purchase_thresholds.json. Recall is reported with precision and the classified-positive share, because predicting everyone positive would trivially achieve 100% recall. These binary classifications are diagnostic; they do not determine promotion recipients.
 
-Log loss, Brier score and ROC-AUC remain supporting diagnostics. Log-loss/Brier safeguards still protect probability quality during development selection. The canonical output name is average_precision; pr_auc remains an identical compatibility alias and does not mean trapezoidal PR area.
+Log loss, Brier score and ROC-AUC remain supporting diagnostics. The canonical output name is average_precision; pr_auc remains an identical compatibility alias and does not mean trapezoidal PR area. The validation report retains the earlier tuning comparison and its uncertainty; the slight average-precision increase did not establish reliable superiority over the older specification.
 
 The score predicts purchasing under the historical mixture of promotional actions. It does not estimate the probability of purchase under NO_OFFER, and it does not measure how much a promotion changes behavior.
 

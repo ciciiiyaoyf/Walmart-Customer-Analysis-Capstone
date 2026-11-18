@@ -1,0 +1,26 @@
+{
+  "date": "2026-11-18",
+  "comparison_commit": "cd7b89ea1dc4300952f5a5e62a955f5621238757",
+  "execution": "All Step 05 code cells executed sequentially with IPython",
+  "baseline_models_in_headline": 1,
+  "cp07_prediction_rows": 3800,
+  "cp07_predictions_unchanged_atol": 1e-12,
+  "july_prediction_rows": 2776,
+  "july_max_absolute_probability_change": 0.0,
+  "archived_experiments_and_submission_unchanged": true,
+  "headline_metrics": [
+    {
+      "model": "logistic_baseline",
+      "average_precision": 0.236708287312832,
+      "recall": 0.500998003992016,
+      "precision": 0.2148972602739726,
+      "threshold": 0.1587799376933467
+    }
+  ],
+  "interpretation": "One baseline workflow; same logistic specification and forecasts. No claimed accuracy gain.",
+  "tests": {
+    "command": "python -m pytest tests -q",
+    "passed": 148
+  },
+  "dashboard_smoke_test": "Streamlit AppTest renders without exceptions; one baseline AP=0.23671 and recall=50.10%"
+}

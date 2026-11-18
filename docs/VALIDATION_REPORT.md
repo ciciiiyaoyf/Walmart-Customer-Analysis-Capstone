@@ -1,10 +1,18 @@
-# Correction and performance validation - November 13, 2026
+# Correction and performance validation
+
+Updated November 18, 2026: the main workflow reports **one logistic regression baseline**. The historical experiments below document previous revisions; they are not extra baseline models required by the project.
 
 **The prior performance revision improved prediction modestly; coverage handling prevents unsupported inactivity claims; the current metrics revision adds purchase recall and detailed profit diagnostics.** Policy superiority remains uncertain. Earlier corrections fixed accounting, timing, constraints, and misleading evaluation while retaining the original model. The subsequent performance revision changed the fitted models and selected allocation independently on development campaigns. The coverage correction preserves those numeric predictor values and properly labels their observation scope. The metrics revision measures the existing models more completely; adding metrics is not a new improvement in their predictions.
 
 ## Purchase headline metrics and expanded diagnostics
 
-**Average precision and recall** are the headline purchase-classification measures. Average precision summarizes the precision-recall ranking without a fixed threshold. Recall is the fraction of actual purchasers classified as purchasers at a frozen threshold. Each logistic model's threshold is chosen by maximum F1 using only CP04-CP06 out-of-time predictions, then serialized before CP07 evaluation. The hurdle purchase component follows the same development-only rule with its own global threshold. The resulting recall is an operating-point diagnostic, not an offer-allocation rule.
+**Average precision and recall** are the headline purchase-classification measures. Average precision summarizes the precision-recall ranking without a fixed threshold. Recall is the fraction of actual purchasers classified as purchasers at a frozen threshold. The logistic baseline's threshold is chosen by maximum F1 using only CP04-CP06 out-of-time predictions, then serialized before CP07 evaluation. The hurdle purchase component follows the same development-only rule with its own global threshold. The resulting recall is an operating-point diagnostic, not an offer-allocation rule.
+
+The baseline uses fixed signed-log transforms and compact interactions, `C=0.01`, and no additional probability calibration. Its evaluation fit uses CP01-CP06 and its deployment fit uses CP01-CP07. These are fits of the same baseline specification for different purposes; only the deployment artifact supplies July propensity scores.
+
+| model | average_precision | recall | precision | threshold | predicted_positive_share |
+| --- | --- | --- | --- | --- | --- |
+| logistic_baseline | 0.2367 | 0.5010 | 0.2149 | 0.1588 | 0.3074 |
 
 Precision, flagged-customer share and the threshold accompany recall so that predicting everyone to purchase cannot masquerade as a useful gain. Log loss, Brier score and ROC-AUC remain supporting diagnostics; the existing model-selection safeguards are retained. `average_precision` is the canonical name; `pr_auc` remains an identical compatibility alias, not trapezoidal PR area.
 
@@ -12,7 +20,7 @@ Numerical comparison with the preceding coverage commit `2cec21b` confirms predi
 
 Implemented outputs:
 
-- `purchase_headline_metrics.csv`, `purchase_thresholds.json`: logistic average precision/recall and reproducible thresholds.
+- `purchase_headline_metrics.csv`, `purchase_thresholds.json`: one logistic baseline's average precision/recall and reproducible threshold.
 - `profit_bias_by_offer.csv`: signed dollar bias, RMSE/MAE/R2, and observed/predicted means overall and by actual offer, for original and selected models.
 - `profit_calibration_by_offer.csv`: predicted-versus-observed NCM in prediction bands, without arbitrarily splitting tied predictions.
 - `hurdle_purchase_metrics.csv`, `hurdle_threshold_selection.json`: purchase-component average precision/recall and development threshold provenance.
@@ -75,16 +83,16 @@ On CP07, old-minus-new MSE is **79.57**, paired customer-bootstrap 95% interval 
 
 RMSE is appropriate for expected dollar NCM and squared-error fitting. MSE adds no independent ranking information because RMSE is its square root; on identical observations R² gives the same ranking. MAE describes absolute dollar errors, but minimizing it instead targets a conditional median, often zero in this sparse outcome. None of these metrics proves causal uplift or policy profit.
 
-## Logistic regression: improvement is small
+## Historical logistic experiment: improvement was small
 
-Rolling CP04-CP06 development compares transformations, compact interactions, regularization, and nested temporal probability calibration. Selection maximizes mean average precision subject to log-loss/Brier safeguards. The winner uses signed-log transforms and compact interactions, C = 0.01, and no additional calibration. Raw and improved models use the same training/test populations and current runtime.
+The earlier optional experiment compared transformations, compact interactions, regularization, and nested temporal probability calibration on rolling CP04-CP06 development. Selection maximized mean average precision subject to log-loss/Brier safeguards. The chosen configuration became the one current baseline. The comparison below is read from `outputs/experiments/propensity/`; Step 05 does not repeat it or require two baselines. Both versions in this archived comparison used the same training/test populations and runtime.
 
 | model | average_precision | recall | precision | threshold | predicted_positive_share |
 | --- | --- | --- | --- | --- | --- |
-| original_fair_refit | 0.2323 | 0.6088 | 0.2020 | 0.1290 | 0.3974 |
+| original | 0.2323 | 0.6088 | 0.2020 | 0.1290 | 0.3974 |
 | selected | 0.2367 | 0.5010 | 0.2149 | 0.1588 | 0.3074 |
 
-The original model catches **60.88%** of actual purchasers at its development threshold, versus **50.10%** for the selected model at its own threshold. The selected model is not uniformly better: it uses a stricter operating point, flags fewer customers and has higher precision. This diagnostic does not retune either threshold using CP07 outcomes.
+The earlier original specification caught **60.88%** of actual purchasers at its development threshold, versus **50.10%** for the configuration now used as the baseline at its own threshold. The latter was not uniformly better: it used a stricter operating point, flagged fewer customers and had higher precision. This archived diagnostic did not retune either threshold using CP07 outcomes.
 
 The selected model's average-precision difference versus the original is **0.004384**, with paired 95% interval **[-0.004445, 0.013209]**. Its recall difference at the respective frozen development thresholds is **-0.107784**, interval **[-0.135243, -0.082807]**. The recall comparison includes different operating thresholds and must be read together with precision and flagged share. Thresholds are held fixed in the customer bootstrap; intervals omit threshold/model selection, refitting and future-campaign uncertainty. Purchase propensity describes buying under the historical offer mixture; it is not untreated purchase probability or causal uplift.
 
