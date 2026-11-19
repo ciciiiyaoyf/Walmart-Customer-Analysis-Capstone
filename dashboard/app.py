@@ -66,10 +66,9 @@ holdout_share = pol.measurement_holdout.mean()
 st.title("PromoPilot · July promotion policy")
 st.caption("July amounts are model projections. Historical randomized-outcome evaluation is shown separately.")
 st.write(f"Submitted policy: **{selected_policy}** · Profit forecast model: **{forecast_model}**")
-st.info("The submitted policy uses deterministic greedy allocation based on predicted incremental NCM, "
-        "under the campaign limits and reserved controls. This deployment method was requested by the "
-        "project owner; it is not a claim that it won historical policy validation. Greedy allocation "
-        "does not guarantee a global optimum or realized profit.")
+st.info("The submitted policy uses MILP to maximize predicted incremental NCM under the campaign "
+        "limits and reserved controls. The solver checks optimality within numerical tolerances. "
+        "This model-based optimum does not establish realized profit or historical policy superiority.")
 st.caption(f"Historical development winner: {validation_selected_policy}. "
            "Its evaluation remains a separate comparison with the submitted policy.")
 
@@ -161,10 +160,9 @@ with tab3:
         "Every policy is scored with the same fitted outcome models. These are forecasts under a shared "
         "model, not observed outcomes or independent estimates of policy superiority."
     )
-    st.caption("SELECTED_POLICY is the submitted greedy allocation. Its identical MODEL_GREEDY alias "
-               "is displayed only once here. RANDOM_FREE_SHIP remains a benchmark; "
-               "PREVIOUS_MILP_REFERENCE is the archived allocation before this change.")
-    displayed_comparison = cmp.loc[cmp.policy.ne("MODEL_GREEDY")]
+    st.caption("SELECTED_POLICY is the submitted MILP allocation. Each feasible comparator is "
+               "displayed once; RANDOM_FREE_SHIP remains a benchmark.")
+    displayed_comparison = cmp
     st.bar_chart(displayed_comparison.set_index("policy").total_expected_incremental_ncm)
     show = (
         ["policy"]

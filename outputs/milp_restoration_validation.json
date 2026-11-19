@@ -1,0 +1,175 @@
+{
+  "date": "2026-11-19",
+  "comparison_commit": "6af5bac2a7cccb1011d620857c268253dc7143ce",
+  "allocator": "scipy_highs_milp",
+  "selected_policy": "HURDLE_XGB_HALF",
+  "validation_selected_policy": "RANDOM_FREE_SHIP",
+  "forecast_models_refitted": false,
+  "unchanged_model_input_hash_count": 19,
+  "unchanged_model_input_hashes": {
+    "outputs/tables/july_customer_action_values.csv": "2d5fcc13aef1a857d5c2b7960107007bc694873c326934879a7de90c5350722d",
+    "outputs/tables/measurement_holdout.csv": "10aac81c2805aae2334e65ae8821e15ad27fd1a0f817f4db3da996067c642c8e",
+    "data/processed/july_features.parquet": "f6e18fa80504da0253c40e009e44573a72119c199f49c25aca3064a6cb472e34",
+    "outputs/models/allocation_ncm_FREE_SHIP.joblib": "9b0ee337bf8d585b4bd7ddc51f6493d0b46d0f2c14b411b6d4d19cc0254b7e35",
+    "outputs/models/allocation_ncm_NO_OFFER.joblib": "109837a36e27c77e92304fde288cc8342ce9687447d525e6a07021cbe25bbeef",
+    "outputs/models/allocation_ncm_PCT_10.joblib": "17b04a29de221a5f5ddc81a846ee0cc71f27e10999db66f8b03a93d5d79da45d",
+    "outputs/models/allocation_ncm_PCT_20.joblib": "8d72de5d1caecf88d47a373b67065e220e6acf309dd7a772bb16f0d2ee11a13c",
+    "outputs/models/logistic_propensity_model.joblib": "22f9506d811fa03ba1fffe3f01126d6a97f132acd635db41fc8004cdb52bea13",
+    "outputs/models/promo_cost_FREE_SHIP.joblib": "33ca08956b40130b5cfe3100ef02daccf13f2ef96b56cfe834fe75ac24065667",
+    "outputs/models/promo_cost_PCT_10.joblib": "186df5001b738615bac78a02d1220dd082903229705e0fbdd276b622063ab901",
+    "outputs/models/promo_cost_PCT_20.joblib": "df3aad817b20c06623d052471d7e7e7a53c6ac32ccaf214aa29dd74d6e936f87",
+    "outputs/models/tlearner_ncm_FREE_SHIP.joblib": "9b0ee337bf8d585b4bd7ddc51f6493d0b46d0f2c14b411b6d4d19cc0254b7e35",
+    "outputs/models/tlearner_ncm_NO_OFFER.joblib": "109837a36e27c77e92304fde288cc8342ce9687447d525e6a07021cbe25bbeef",
+    "outputs/models/tlearner_ncm_PCT_10.joblib": "17b04a29de221a5f5ddc81a846ee0cc71f27e10999db66f8b03a93d5d79da45d",
+    "outputs/models/tlearner_ncm_PCT_20.joblib": "8d72de5d1caecf88d47a373b67065e220e6acf309dd7a772bb16f0d2ee11a13c",
+    "outputs/models/xgboost_ncm_FREE_SHIP.joblib": "9b0ee337bf8d585b4bd7ddc51f6493d0b46d0f2c14b411b6d4d19cc0254b7e35",
+    "outputs/models/xgboost_ncm_NO_OFFER.joblib": "109837a36e27c77e92304fde288cc8342ce9687447d525e6a07021cbe25bbeef",
+    "outputs/models/xgboost_ncm_PCT_10.joblib": "17b04a29de221a5f5ddc81a846ee0cc71f27e10999db66f8b03a93d5d79da45d",
+    "outputs/models/xgboost_ncm_PCT_20.joblib": "8d72de5d1caecf88d47a373b67065e220e6acf309dd7a772bb16f0d2ee11a13c"
+  },
+  "submission_monetary_rounding_digits": 4,
+  "controls_unchanged": true,
+  "control_count": 139,
+  "all_constraints_pass": true,
+  "projected_incremental_ncm": 2501.7833760103467,
+  "expected_promo_cost": 167.443441762854,
+  "action_counts": {
+    "NO_OFFER": 1111,
+    "PCT_10": 0,
+    "PCT_20": 0,
+    "FREE_SHIP": 1665
+  },
+  "difference_vs_previous_greedy": 0.0,
+  "action_changes_vs_previous_greedy": 0,
+  "solver": {
+    "solver_status": "Optimal",
+    "allocator": "scipy_highs_milp",
+    "solver": "scipy.optimize.milp / HiGHS",
+    "objective": 2501.7833760103467,
+    "primary_objective": 2501.7833760103467,
+    "primary_mip_gap": 0.0,
+    "primary_objective_upper_bound": 2501.7833760103467,
+    "returned_objective_gap_dollars": 0.0,
+    "primary_optimality_certified": true,
+    "optimality_scope": "Primary MILP solved to optimality within solver numerical tolerances; secondary tie-breaking preserves NCM within tie_tolerance plus numerical tolerance",
+    "secondary_mip_gap": 0.0,
+    "tie_tolerance": 1e-07
+  },
+  "original_dollar_upper_bound": 2501.7833760103467,
+  "bound_gap": 0.0,
+  "reaches_bound": true,
+  "bound_explanation": "Sum the largest positive per-customer maximum gains among noncontrols under the offer cap, relaxing budget and PCT20 limits. A feasible allocation attaining this bound is optimal for the original saved forecasts to numerical precision.",
+  "positive_gain_customers": {
+    "NO_OFFER": 0,
+    "PCT_10": 0,
+    "PCT_20": 0,
+    "FREE_SHIP": 2776
+  },
+  "earlier_alternative_experiments": {
+    "source_commit": "6af5bac2a7cccb1011d620857c268253dc7143ce",
+    "results": [
+      {
+        "method": "CP_SAT_SCALE_1000000",
+        "incremental_ncm": 2501.7833760103467,
+        "changed_assignments": 0,
+        "all_constraints_pass": true
+      },
+      {
+        "method": "CP_SAT_SCALE_100000000",
+        "incremental_ncm": 2501.7833760103467,
+        "changed_assignments": 0,
+        "all_constraints_pass": true
+      },
+      {
+        "method": "SIMULATED_ANNEALING_SEED_7",
+        "incremental_ncm": 2501.7833760103467,
+        "changed_assignments": 0,
+        "all_constraints_pass": true
+      },
+      {
+        "method": "SIMULATED_ANNEALING_SEED_42",
+        "incremental_ncm": 2501.7833760103467,
+        "changed_assignments": 0,
+        "all_constraints_pass": true
+      },
+      {
+        "method": "SIMULATED_ANNEALING_SEED_2026",
+        "incremental_ncm": 2501.7833760103467,
+        "changed_assignments": 0,
+        "all_constraints_pass": true
+      }
+    ],
+    "interpretation": "CP-SAT matched the allocation; simulated annealing retained its starting greedy incumbent. Neither increased projected NCM. Full experiment code and records remain in this Git commit."
+  },
+  "historical_selected_policy_before": [
+    {
+      "policy": "HURDLE_XGB_HALF",
+      "dr_incremental_ncm_per_customer": 8.8887603113843,
+      "ci_low": 0.2528209694035987,
+      "ci_high": 18.02990394639089
+    }
+  ],
+  "historical_selected_policy_after": [
+    {
+      "policy": "HURDLE_XGB_HALF",
+      "dr_incremental_ncm_per_customer": 8.8887603113843,
+      "ci_low": 0.2528209694035987,
+      "ci_high": 18.02990394639089
+    }
+  ],
+  "execution": {
+    "historical_policy_search": "CP04-CP06 development and retrospective CP07 rerun using MILP; 2000 bootstrap draws",
+    "fully_executed_notebooks": [
+      "07",
+      "09",
+      "10"
+    ],
+    "notebook_06": "Presentation refreshed from rerun policy evaluation and unchanged saved profit models; unchanged component-diagnostic outputs retained",
+    "forecast_model_artifacts": "All existing fitted profit, purchase-propensity, and promotion-cost model files retained unchanged"
+  },
+  "removed_tracked_file_count": 33,
+  "removed_tracked_files": [
+    "docs/ALLOCATION_METHOD_COMPARISON.md",
+    "docs/Pipeline_Guide.pdf",
+    "docs/figures/lineage.png",
+    "docs/figures/roadmap.png",
+    "docs/figures/workflow_full.png",
+    "docs/make_diagrams.py",
+    "notebooks/09_greedy_policy_allocation.ipynb",
+    "outputs/allocator_revision_validation.json",
+    "outputs/experiments/allocators/comparison.json",
+    "outputs/experiments/allocators/cp_sat_scale_100000000_assignments.csv",
+    "outputs/experiments/allocators/cp_sat_scale_1000000_assignments.csv",
+    "outputs/experiments/allocators/method_comparison.csv",
+    "outputs/experiments/allocators/offer_gain_diagnostics.csv",
+    "outputs/experiments/allocators/simulated_annealing_seed_2026_assignments.csv",
+    "outputs/experiments/allocators/simulated_annealing_seed_42_assignments.csv",
+    "outputs/experiments/allocators/simulated_annealing_seed_7_assignments.csv",
+    "outputs/experiments/allocators/verification.json",
+    "outputs/reference/allocator_before_20261118/baseline_policy_comparison.csv",
+    "outputs/reference/allocator_before_20261118/heldout_policy_comparison.csv",
+    "outputs/reference/allocator_before_20261118/measurement_holdout.csv",
+    "outputs/reference/allocator_before_20261118/milp_policy_detailed.csv",
+    "outputs/reference/allocator_before_20261118/policy_selection.json",
+    "outputs/reference/allocator_before_20261118/policy_submission.csv",
+    "outputs/reference/allocator_before_20261118/provenance.json",
+    "outputs/tables/greedy_policy_detailed.csv",
+    "outputs/tables/optimized_policy_detailed.csv",
+    "requirements-optimizer-experiments.txt",
+    "scripts/compare_allocation_methods.py",
+    "scripts/validate_allocator_revision.py",
+    "src/allocation_annealing.py",
+    "src/allocation_cpsat.py",
+    "tests/test_allocation_annealing.py",
+    "tests/test_allocation_cpsat.py"
+  ],
+  "evidence_scope": "Frozen July projections and retrospective CP07 evaluation; no observed July gains and no claim that optimal predictions validate the model.",
+  "tests": {
+    "command": "python -m pytest -q",
+    "passed": 168
+  },
+  "dashboard": {
+    "app_test_passed": true,
+    "exceptions": 0
+  }
+}

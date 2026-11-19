@@ -1,5 +1,6 @@
 {
   "forecast_model": "HURDLE_XGB_HALF",
   "allocation_model": "HURDLE_XGB_HALF",
-  "selected_policy": "HURDLE_XGB_HALF"
+  "selected_policy": "HURDLE_XGB_HALF",
+  "allocator": "scipy_highs_milp"
 }

@@ -15,7 +15,7 @@ def load_allocation_policy_config(root=None):
     """Load the explicit deployment choice independently of policy validation."""
     root = Path(root) if root is not None else Path(__file__).resolve().parents[1]
     config = json.loads((root / "config/allocation_policy.json").read_text(encoding="utf-8"))
-    if config.get("mode") != "forecast_champion_greedy":
+    if config.get("mode") != "forecast_champion_milp":
         raise ValueError("Unknown allocation-policy mode")
     if config.get("allocator") != ALLOCATOR_NAME:
         raise ValueError("Unknown deployment allocator")
@@ -37,7 +37,7 @@ def publish_policy_validation(history, policy, profit, tables, models_dir, draws
     forecast = profit["selected_model"]
     config = load_allocation_policy_config(root)
     if policy.get("model_allocator") != config["allocator"]:
-        raise ValueError("Rerun policy validation using the configured greedy allocator before publication")
+        raise ValueError("Rerun policy validation using the configured MILP allocator before publication")
     selected = forecast
     selection = {**policy, "selected_policy": selected, "selected_method": selected,
                  "selection_role": "Configured deployment; development comparison preserved in validation_policy_selection",
@@ -50,12 +50,12 @@ def publish_policy_validation(history, policy, profit, tables, models_dir, draws
                  "validation_selected_policy": policy["selected_policy"],
                  "validation_policy_selection": policy,
                  "prediction_selection": profit,
-                 "distinction": "Forecast model minimizes factual RMSE. Deployment uses its predictions with the user-requested greedy allocator; the development policy winner remains a separate comparison."}
+                 "distinction": "Forecast model minimizes factual RMSE. Deployment uses its predictions with the user-requested MILP allocator; the development policy winner remains a separate comparison."}
     summary = pd.read_csv(policy_out / "retrospective_cp07_summary.csv")
     scores = pd.read_csv(policy_out / "retrospective_cp07_scores.csv")
     allocations = pd.read_csv(policy_out / "retrospective_cp07_allocations.csv")
     if selected not in set(summary.policy) or selected not in set(scores.policy) or selected not in set(allocations.policy):
-        raise ValueError("The configured deployment model must have a completed greedy-policy audit")
+        raise ValueError("The configured deployment model must have a completed MILP-policy audit")
     for frame in (summary, allocations):
         if ("allocation_algorithm" not in frame or
                 not frame.loc[frame.policy.eq(selected), "allocation_algorithm"].eq(config["allocator"]).all()):

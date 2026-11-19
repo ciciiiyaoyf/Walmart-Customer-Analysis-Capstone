@@ -78,39 +78,40 @@ def main():
     coverage=json.loads((T/'transaction_coverage_summary.json').read_text())
     coverage_change=json.loads((T/'coverage_revision_comparison.json').read_text())
     environment=json.loads((ROOT/'outputs/validation_environment.json').read_text())
-    allocator_check_path=ROOT/'outputs/allocator_revision_validation.json'
+    allocator_check_path=ROOT/'outputs/milp_restoration_validation.json'
     allocator_check=json.loads(allocator_check_path.read_text()) if allocator_check_path.exists() else None
     allocator_text=''
     if allocator_check:
-        allocation_rows=[]
-        for key,label in [('previous_submission','Previous random submission'),
-                          ('previous_milp','Previous MILP reference'),('new_greedy','Current greedy allocation')]:
-            row=allocator_check[key]
-            allocation_rows.append({'allocation':label,'projected_incremental_ncm':row['incremental_ncm'],
-                                    'expected_promo_cost':row['promo_cost']})
         allocator_text=(
-            '\n## Allocator replacement on identical July inputs\n\n'
-            +table(pd.DataFrame(allocation_rows))+'\n\n'
-            +f"Compared with the previous MILP, projected incremental NCM changed by **{money(allocator_check['gain_vs_previous_milp'])}**, "
-            +f"with **{allocator_check['action_changes_vs_previous_milp']} changed assignments**. "
-            +f"Compared with the earlier random submission, the change is **{money(allocator_check['gain_vs_previous_submission'])}** "
-            +f"and **{allocator_check['action_changes_vs_previous_submission']} changed assignments**. "
-            +'That latter difference comes from deploying model-ranked recipients instead of random recipients; it is not an improvement over MILP.\n\n'
-            +f"The audit verifies {allocator_check['unchanged_forecast_model_and_input_hash_count']} unchanged input/model hashes, "
-            +'unchanged controls, matching saved and recomputed greedy assignments, and all constraints. '
-            +'The same model-driven CP07 policy point estimate is unchanged. The heuristic can be suboptimal on other inputs; '
-            +'a regression test explicitly demonstrates a binding-budget counterexample. These are forecasts and retrospective diagnostics, not realized July gains.\n\n'
-            +'The two proposed measurement-control designs are documented in `docs/CONTROL_GROUP_OPTIONS.md`; neither was adopted in this revision.\n')
+            '\n## MILP restoration and repository cleanup\n\n'
+            +f"The restored MILP projects **{money(allocator_check['projected_incremental_ncm'])}** incremental NCM "
+            +f"with **{money(allocator_check['expected_promo_cost'])}** promotion spend. "
+            +f"Compared with the preceding greedy submission, the gain is **{money(allocator_check['difference_vs_previous_greedy'])}**, "
+            +f"with **{allocator_check['action_changes_vs_previous_greedy']} changed assignments**. "
+            +'CP-SAT at two precision settings and simulated annealing at three seeds had also produced no improvement; '
+            +'the annealing search retained its starting incumbent. Detailed experiments remain in Git history at '
+            +f"`{allocator_check['comparison_commit']}`.\n\n"
+            +f"An independent upper bound on the original-dollar objective is **{money(allocator_check['original_dollar_upper_bound'])}**; "
+            +f"the feasible current policy's gap is **{money(allocator_check['bound_gap'])}**. "
+            +'This bound takes each noncontrol customer\'s maximum gain, then sums the largest positive gains under the offer cap while relaxing the budget and PCT20 limits. '
+            +'Attaining the bound certifies this allocation for the fixed predictions and controls to numerical precision. '
+            +'It does not validate the model or establish observed July profit.\n\n'
+            +f"The audit verifies {allocator_check['unchanged_model_input_hash_count']} unchanged fitted-model/input hashes, "
+            +'unchanged controls, matching saved and recomputed MILP assignments, and all constraints. '
+            +'Historical policy evaluations were rerun with MILP; profit and logistic model artifacts were not refitted. '
+            +f"The cleanup removed {allocator_check['removed_tracked_file_count']} superseded tracked files, "
+            +'including alternative solver code, duplicate experiment outputs, the old allocator archive, and legacy guide assets. '
+            +'The removal list and solver certificate are in `outputs/milp_restoration_validation.json`.\n\n'
+            +'The two proposed measurement-control designs remain documented in `docs/CONTROL_GROUP_OPTIONS.md`; neither was adopted.\n')
         if 'tests' in allocator_check:
-            allocator_text+=(f"\nThe allocator revision passed **{allocator_check['tests']['passed']} tests**, "
-                             +f"plus {allocator_check['tests']['additional_randomized_feasibility_and_order_invariance_cases']:,} randomized feasibility/order-invariance scenarios.\n")
+            allocator_text+=f"\nThe restored project passed **{allocator_check['tests']['passed']} tests**.\n"
     test_evidence=(f"The recorded verification run passed **{environment['focused_tests_passed']} focused tests**."
                    if 'focused_tests_passed' in environment else 'The completed test run is recorded with the revision.')
     cold_text=(table(cold[['subgroup','n','matched_rows','dr_incremental_ncm_per_customer','ci_low','ci_high']])
                if len(cold) else 'No selected-policy subgroup estimate was saved; July transport remains unvalidated.')
     text=f'''# Correction and performance validation
 
-Updated November 18, 2026: **the current deployment uses {selected} forecasts with a deterministic greedy allocator**, replacing MILP at the project owner's request. The configured allocator is `{selection['allocator']}`. It produces a feasible allocation without a general global-optimality guarantee. The development-policy winner is separately recorded as **{validation_winner}**; using the greedy deployment does not establish that it outperforms that comparator. The choice and unchanged measurement-control design are documented in `config/allocation_policy.json`.
+Updated November 19, 2026: **the current deployment uses {selected} forecasts with the restored SciPy/HiGHS MILP allocator**. The configured allocator is `{selection['allocator']}`. The solver requires an optimal primary solution and records its bound and numerical/tie-breaking tolerances. The development-policy winner is separately recorded as **{validation_winner}**; using the model-driven deployment does not establish that it outperforms that comparator. The choice and unchanged measurement-control design are documented in `config/allocation_policy.json`.
 
 The main workflow retains **the original logistic regression as its one purchase-propensity baseline**. The complex logistic version remains an experiment record; restoring the original does not establish a new performance gain. Execution checks for that earlier restoration are recorded in `outputs/original_logistic_validation.json`.
 
@@ -165,7 +166,7 @@ This semantic correction adds **no measured model-performance gain** when predic
 
 - Expected-NCM prediction: CP07 RMSE falls from **{old.rmse:.4f} to {new.rmse:.4f}** ({100*(old.rmse-new.rmse)/old.rmse:.2f}%), and MAE from **{old.mae:.4f} to {new.mae:.4f}** ({100*(old.mae-new.mae)/old.mae:.2f}%).
 - Historical logistic experiment: the more complex version produced small changes in average precision and probability quality, with uncertainty including zero improvement. Recall was lower at its separately chosen threshold because fewer customers were flagged. The current baseline restores the original specification for simplicity.
-- Feasible allocation: **{validation_winner}** wins the rerun CP04-CP06 development comparison. Production instead uses **{selected} with the user-requested greedy allocator**. For the separate random-free-shipping comparator, averaging feasible random recipient sets gives CP07 DR incremental NCM of **${stochastic_gain.gain:.2f} per customer** versus no offer; its paired difference versus the original-model greedy policy is **${stochastic_change.gain:.2f}**, 95% interval **[{money(stochastic_change.ci_low)}, {money(stochastic_change.ci_high)}]**.
+- Feasible allocation: **{validation_winner}** wins the rerun CP04-CP06 development comparison. Production instead uses **{selected} with the user-requested MILP allocator**. For the separate random-free-shipping comparator, averaging feasible random recipient sets gives CP07 DR incremental NCM of **${stochastic_gain.gain:.2f} per customer** versus no offer; its paired difference versus the original-model MILP policy is **${stochastic_change.gain:.2f}**, 95% interval **[{money(stochastic_change.ci_low)}, {money(stochastic_change.ci_high)}]**.
 
 CP07 was already inspected in earlier project work. These are **retrospective comparisons**, not a new untouched confirmatory test. They are not realized July gains. The choice of a model-driven deployment is explicit and is not evidence that personalization improves profit.
 
@@ -175,7 +176,7 @@ The reference is commit `ea950d0e9011ff0e105f5d93758ab54944a7c75f`. The original
 
 {table(compare)}
 
-Predictive champion: **{champion}**. Deployment forecast model: **{selected}**, used by the greedy allocator. Development-policy winner: **{validation_winner}**. Prediction accuracy does not establish good treatment-effect ranking. Primary 14-day NCM unchanged: **{data_check['primary_ncm_unchanged']}**. Feature columns with changed numerical/category values: **{len(data_check['feature_differences'])}**; separately renamed observation-scope fields: **{len(data_check.get('feature_scope_renames', {}))}**. Factual CP07 predictions changed for **{data_check['factual_predictions_changed_rows']}** assignments in the earlier prediction revision. Replacing the allocator does not change those fitted predictions.
+Predictive champion: **{champion}**. Deployment forecast model: **{selected}**, used by the MILP allocator. Development-policy winner: **{validation_winner}**. Prediction accuracy does not establish good treatment-effect ranking. Primary 14-day NCM unchanged: **{data_check['primary_ncm_unchanged']}**. Feature columns with changed numerical/category values: **{len(data_check['feature_differences'])}**; separately renamed observation-scope fields: **{len(data_check.get('feature_scope_renames', {}))}**. Factual CP07 predictions changed for **{data_check['factual_predictions_changed_rows']}** assignments in the earlier prediction revision. Replacing the allocator does not change those fitted predictions.
 
 In the prior model-performance revision, compared with reliability revision `{behavior_change['comparison_commit'][:7]}`, **{behavior_change['july_actions_changed']:,} of {behavior_change['july_customers']:,} July actions changed**. That is a concrete behavior change, not proof of higher realized profit. The comparison and input fingerprint are saved in `performance_revision_changes.json`.
 
@@ -219,7 +220,7 @@ Negative margins remain valid. MAPE is unsuitable for the many zero-NCM outcomes
 
 ## Compare feasible policies and document the deployment choice
 
-Development compares {policy_search['candidate_count']} allocation rules, including greedy allocations from model forecasts, pooled/segment shrinkage rules, and simple baselines. Every fold uses earlier campaigns for reward and cost fitting, with the same budget, offer cap, PCT_20 cap, and reserved controls. All model-based candidates now use `{selection['allocator']}`. The development winner maximizes pooled customer-weighted DR value. The separate deployment decision is: **{selection['deployment_selection_basis']}**
+Development compares {policy_search['candidate_count']} allocation rules, including MILP allocations from model forecasts, pooled/segment shrinkage rules, and simple baselines. Every fold uses earlier campaigns for reward and cost fitting, with the same budget, offer cap, PCT_20 cap, and reserved controls. All model-based candidates now use `{selection['allocator']}`. The development winner maximizes pooled customer-weighted DR value. The separate deployment decision is: **{selection['deployment_selection_basis']}**
 
 {table(development.head(8))}
 
@@ -229,13 +230,13 @@ Development ranking is selection-biased. The development winner and the configur
 
 {table(paired[['reference','paired_dr_difference','ci_low','ci_high']])}
 
-The configured **{selected} greedy allocation** has CP07 DR gain **${policy.dr_incremental_ncm_per_customer:.2f}**, interval **[${policy.ci_low:.2f}, ${policy.ci_high:.2f}]**, and paired difference versus the original-model greedy allocation of **${change.paired_dr_difference:.2f}**, interval **[${change.ci_low:.2f}, ${change.ci_high:.2f}]**. These results evaluate a policy, not prediction RMSE.
+The configured **{selected} MILP allocation** has CP07 DR gain **${policy.dr_incremental_ncm_per_customer:.2f}**, interval **[${policy.ci_low:.2f}, ${policy.ci_high:.2f}]**, and paired difference versus the original-model MILP allocation of **${change.paired_dr_difference:.2f}**, interval **[${change.ci_low:.2f}, ${change.ci_high:.2f}]**. These results evaluate a policy, not prediction RMSE.
 
-The separate seed-42 RANDOM_FREE_SHIP comparator has CP07 DR gain **${random_policy.dr_incremental_ncm_per_customer:.2f}**, interval **[${random_policy.ci_low:.2f}, ${random_policy.ci_high:.2f}]**. The following diagnostic averages random recipient sets with the same controls; its numbers belong to the random comparator, not the deployed greedy allocation:
+The separate seed-42 RANDOM_FREE_SHIP comparator has CP07 DR gain **${random_policy.dr_incremental_ncm_per_customer:.2f}**, interval **[${random_policy.ci_low:.2f}, ${random_policy.ci_high:.2f}]**. The following diagnostic averages random recipient sets with the same controls; its numbers belong to the random comparator, not the deployed MILP allocation:
 
 {table(stochastic[['comparison','gain','ci_low','ci_high']])}
 
-The random-recipient diagnostic does not retune selection and is not evidence that the requested greedy allocation is superior. A fixed seed alone does not make one random recipient realization representative. The deployment choice is explicit configuration, while the development ranking and uncertainty remain visible. A new randomized campaign is needed to assess future performance.
+The random-recipient diagnostic does not retune selection and is not evidence that the requested MILP allocation is superior. A fixed seed alone does not make one random recipient realization representative. The deployment choice is explicit configuration, while the development ranking and uncertainty remain visible. A new randomized campaign is needed to assess future performance.
 
 Actual logging probabilities were not supplied. Primary estimates assume unconditional randomized assignment within campaign and use empirical action frequencies; uniform-0.25 sensitivity is also saved. Customer-cluster bootstrap draws retain repeated-customer observations and re-estimate logging frequencies. Policy intervals use 2,000 draws, condition on fitted models and fixed allocations, and omit future campaign drift and full retraining uncertainty. Nominal test intervals are not adjusted for repeated earlier inspection of CP07.
 

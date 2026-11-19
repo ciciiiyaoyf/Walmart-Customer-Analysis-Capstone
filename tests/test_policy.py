@@ -35,14 +35,14 @@ def brute_force_optimum(v, budget, offer_share, pct20_share, holdout=()):
     return best
 
 
-def test_greedy_respects_binding_budget_and_holdout():
+def test_milp_matches_exhaustive_optimum_with_binding_budget_and_holdout():
     v = values([[0, 8, 12, 3], [0, 6, 11, 5], [0, 7, 8, 2], [0, 9, 15, 4]],
                [[0, 4, 8, 1], [0, 3, 7, 1], [0, 4, 5, 1], [0, 4, 9, 1]])
     hold = ["c03"]
     p = optimize_policy(v, budget=7, max_offer_share=.75, max_pct20_share=.5, holdout_ids=hold)
     assert assert_feasible(p, budget=7, max_offer_share=.75, max_pct20_share=.5, holdout_ids=hold)
     assert p.estimated_promo_cost.sum() == pytest.approx(7)
-    assert p.estimated_incremental_ncm.sum() > 0
+    assert p.estimated_incremental_ncm.sum() == pytest.approx(brute_force_optimum(v, 7, .75, .5, hold))
     assert p.set_index("customer_id").loc["c03", "recommended_action"] == "NO_OFFER"
 
 
@@ -100,49 +100,49 @@ def test_bad_inputs_fail_loudly(problem):
         optimize_policy(v, **kwargs)
 
 
-def test_greedy_can_miss_global_optimum_and_reports_heuristic_status():
+def test_milp_finds_profitable_combination_instead_of_largest_single_gain():
     # Taking the largest single gain uses all budget; two smaller gains together
-    # would be better. This documents the heuristic's genuine limitation.
+    # are better. Joint optimization must recover that combination.
     v = values([[0, -1, -1, 10], [0, -1, -1, 6], [0, -1, -1, 6]],
                [[0, 1, 1, 10], [0, 1, 1, 5], [0, 1, 1, 5]])
     p = optimize_policy(v, budget=10, max_offer_share=1)
-    assert p.estimated_incremental_ncm.sum() == pytest.approx(10)
+    assert p.estimated_incremental_ncm.sum() == pytest.approx(12)
     assert brute_force_optimum(v, 10, 1, .15) == pytest.approx(12)
-    assert p.attrs['solver_status'] == 'Feasible heuristic'
-    assert p.attrs['allocator'] == 'deterministic_incremental_ncm_greedy'
-    assert p.attrs['global_optimality_guaranteed'] is False
+    assert p.attrs['solver_status'] == 'Optimal'
+    assert p.attrs['allocator'] == 'scipy_highs_milp'
+    assert p.attrs['primary_optimality_certified'] is True
+    assert p.attrs['primary_mip_gap'] == 0
+    assert p.attrs['primary_objective_upper_bound'] == pytest.approx(12)
+    assert p.attrs['returned_objective_gap_dollars'] == pytest.approx(0)
 
 
-def test_greedy_uses_affordable_alternative_when_best_offer_exceeds_budget():
+def test_milp_uses_affordable_alternative_when_best_offer_exceeds_budget():
     v = values([[0, 8, -1, 5]], [[0, 10, 1, 2]])
     p = optimize_policy(v, budget=2, max_offer_share=1)
     assert p.recommended_action.tolist() == ['FREE_SHIP']
     assert p.estimated_incremental_ncm.sum() == 5
 
 
-def test_pct20_upgrades_after_non20_recipients_establish_denominator():
+def test_pct20_receives_sufficient_non20_support():
     p = optimize_policy(values([[0, 1, 100, 1]] * 7), budget=7, max_offer_share=1)
     assert p.recommended_action.ne('NO_OFFER').sum() == 7
     assert p.recommended_action.eq('PCT_20').sum() == 1
     assert p.estimated_incremental_ncm.sum() == 106
-    assert p.attrs['allocation_moves']['pct20_upgrade'] == 1
 
 
-def test_pct20_only_customer_can_be_added_after_six_other_offers():
+def test_pct20_only_customer_is_selected_with_six_other_offers():
     v = values([[0, -1, 100, -1]] + [[0, -1, -1, 1]] * 6)
     p = optimize_policy(v, budget=7, max_offer_share=1)
     assert p.set_index('customer_id').loc['c00', 'recommended_action'] == 'PCT_20'
-    assert p.attrs['allocation_moves']['pct20_addition'] == 1
     assert p.recommended_action.ne('NO_OFFER').sum() == 7
 
 
-def test_pct20_only_customer_can_replace_weaker_recipient_at_offer_cap():
+def test_pct20_only_customer_is_selected_under_binding_offer_cap():
     v = values([[0, -1, 100, -1]] + [[0, -1, -1, 1]] * 7)
     p = optimize_policy(v, budget=7, max_offer_share=7/8)
     assert p.recommended_action.ne('NO_OFFER').sum() == 7
     assert p.recommended_action.eq('PCT_20').sum() == 1
     assert p.estimated_incremental_ncm.sum() == 106
-    assert p.attrs['allocation_moves']['pct20_replacement'] == 1
     assert assert_feasible(p, budget=7, max_offer_share=7/8)
 
 
@@ -154,17 +154,16 @@ def test_pct20_with_full_allowed_share_needs_no_supporting_offers():
     assert unsupported.recommended_action.eq('NO_OFFER').all()
 
 
-def test_refill_after_cost_saving_upgrade_preserves_actual_pct20_share():
+def test_milp_finds_joint_cost_saving_and_offer_count_solution():
     gains = [[0, 10, 20, -1]] + [[0, -1, -1, 1]] * 6 + [[0, -1, -1, .5]]
     costs = [[0, 5, 1, 1]] + [[0, 1, 1, 1]] * 7
     p = optimize_policy(values(gains, costs), budget=11, max_offer_share=1)
     assert p.recommended_action.ne('NO_OFFER').sum() == 8
     assert p.recommended_action.eq('PCT_20').sum() == 1
-    assert p.attrs['allocation_moves']['non_pct20_refill'] == 1
     assert assert_feasible(p, budget=11, max_offer_share=1)
 
 
-def test_greedy_row_order_invariance_with_distinct_costs_and_pct20_moves():
+def test_milp_row_order_invariance_with_distinct_costs_and_pct20():
     v = values([[0, -1, 100, -1]] + [[0, 2, 3, 1]] * 8,
                [[0, 1, 2, 1]] + [[0, 2, 3, 1]] * 8)
     first = optimize_policy(v, budget=12, max_offer_share=8/9, holdout_ids=['c08'])
@@ -172,3 +171,40 @@ def test_greedy_row_order_invariance_with_distinct_costs_and_pct20_moves():
                                max_offer_share=8/9, holdout_ids=['c08'])
     pd.testing.assert_frame_equal(first, shuffled)
     assert first.attrs == shuffled.attrs
+
+
+def test_negative_gain_support_offer_can_enable_profitable_pct20():
+    # Choosing a -$1 PCT_10 permits a +$10 PCT_20 under the 50% share limit.
+    # Removing nonpositive actions before optimization would incorrectly return zero.
+    v = values([[0, -20, 10, -20], [0, -1, -20, -2]])
+    p = optimize_policy(v, budget=2, max_offer_share=1, max_pct20_share=.5)
+    assert p.recommended_action.tolist() == ['PCT_20', 'PCT_10']
+    assert p.estimated_incremental_ncm.sum() == brute_force_optimum(v, 2, 1, .5) == 9
+
+
+def test_tie_break_prefers_lower_cost_for_equal_gain():
+    v = values([[0, 5, 5, 5]], [[0, 4, 3, 1]])
+    p = optimize_policy(v, budget=5, max_offer_share=1, max_pct20_share=1)
+    assert p.recommended_action.tolist() == ['FREE_SHIP']
+    assert p.estimated_incremental_ncm.sum() == p.attrs['primary_objective'] == 5
+
+
+@pytest.mark.parametrize('seed', range(6))
+def test_small_random_milp_instances_match_exhaustive_search(seed):
+    rng = np.random.default_rng(seed)
+    gain = np.column_stack([np.zeros(4), rng.integers(-3, 10, (4, 3))])
+    cost = np.column_stack([np.zeros(4), rng.integers(0, 5, (4, 3))])
+    v = values(gain, cost)
+    p = optimize_policy(v, budget=5, max_offer_share=.75, max_pct20_share=.5)
+    assert p.estimated_incremental_ncm.sum() == brute_force_optimum(v, 5, .75, .5)
+    assert assert_feasible(p, budget=5, max_offer_share=.75, max_pct20_share=.5)
+
+
+def test_solver_must_certify_optimality_before_returning(monkeypatch):
+    from types import SimpleNamespace
+    import src.policy as policy_module
+
+    monkeypatch.setattr(policy_module, 'milp', lambda *a, **k:
+                        SimpleNamespace(status=1, x=np.array([1, 0, 0, 0]), message='time limit'))
+    with pytest.raises(RuntimeError, match='optimization failed'):
+        optimize_policy(values([[0, 1, 2, 3]]))

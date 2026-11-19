@@ -1,25 +1,21 @@
 # Correction and performance validation
 
-Updated November 18, 2026: **the current deployment uses HURDLE_XGB_HALF forecasts with a deterministic greedy allocator**, replacing MILP at the project owner's request. The configured allocator is `deterministic_incremental_ncm_greedy`. It produces a feasible allocation without a general global-optimality guarantee. The development-policy winner is separately recorded as **RANDOM_FREE_SHIP**; using the greedy deployment does not establish that it outperforms that comparator. The choice and unchanged measurement-control design are documented in `config/allocation_policy.json`.
+Updated November 19, 2026: **the current deployment uses HURDLE_XGB_HALF forecasts with the restored SciPy/HiGHS MILP allocator**. The configured allocator is `scipy_highs_milp`. The solver requires an optimal primary solution and records its bound and numerical/tie-breaking tolerances. The development-policy winner is separately recorded as **RANDOM_FREE_SHIP**; using the model-driven deployment does not establish that it outperforms that comparator. The choice and unchanged measurement-control design are documented in `config/allocation_policy.json`.
 
 The main workflow retains **the original logistic regression as its one purchase-propensity baseline**. The complex logistic version remains an experiment record; restoring the original does not establish a new performance gain. Execution checks for that earlier restoration are recorded in `outputs/original_logistic_validation.json`.
 
 
-## Allocator replacement on identical July inputs
+## MILP restoration and repository cleanup
 
-| allocation | projected_incremental_ncm | expected_promo_cost |
-| --- | --- | --- |
-| Previous random submission | 1999.3748 | 167.4434 |
-| Previous MILP reference | 2501.7834 | 167.4434 |
-| Current greedy allocation | 2501.7834 | 167.4434 |
+The restored MILP projects **$2501.78** incremental NCM with **$167.44** promotion spend. Compared with the preceding greedy submission, the gain is **$0.00**, with **0 changed assignments**. CP-SAT at two precision settings and simulated annealing at three seeds had also produced no improvement; the annealing search retained its starting incumbent. Detailed experiments remain in Git history at `6af5bac2a7cccb1011d620857c268253dc7143ce`.
 
-Compared with the previous MILP, projected incremental NCM changed by **$0.00**, with **0 changed assignments**. Compared with the earlier random submission, the change is **$502.41** and **1234 changed assignments**. That latter difference comes from deploying model-ranked recipients instead of random recipients; it is not an improvement over MILP.
+An independent upper bound on the original-dollar objective is **$2501.78**; the feasible current policy's gap is **$0.00**. This bound takes each noncontrol customer's maximum gain, then sums the largest positive gains under the offer cap while relaxing the budget and PCT20 limits. Attaining the bound certifies this allocation for the fixed predictions and controls to numerical precision. It does not validate the model or establish observed July profit.
 
-The audit verifies 29 unchanged input/model hashes, unchanged controls, matching saved and recomputed greedy assignments, and all constraints. The same model-driven CP07 policy point estimate is unchanged. The heuristic can be suboptimal on other inputs; a regression test explicitly demonstrates a binding-budget counterexample. These are forecasts and retrospective diagnostics, not realized July gains.
+The audit verifies 19 unchanged fitted-model/input hashes, unchanged controls, matching saved and recomputed MILP assignments, and all constraints. Historical policy evaluations were rerun with MILP; profit and logistic model artifacts were not refitted. The cleanup removed 33 superseded tracked files, including alternative solver code, duplicate experiment outputs, the old allocator archive, and legacy guide assets. The removal list and solver certificate are in `outputs/milp_restoration_validation.json`.
 
-The two proposed measurement-control designs are documented in `docs/CONTROL_GROUP_OPTIONS.md`; neither was adopted in this revision.
+The two proposed measurement-control designs remain documented in `docs/CONTROL_GROUP_OPTIONS.md`; neither was adopted.
 
-The allocator revision passed **159 tests**, plus 1,000 randomized feasibility/order-invariance scenarios.
+The restored project passed **168 tests**.
 
 
 **The prior performance revision improved prediction modestly; coverage handling prevents unsupported inactivity claims; the current metrics revision adds purchase recall and detailed profit diagnostics.** Policy superiority remains uncertain. Earlier corrections fixed accounting, timing, constraints, and misleading evaluation while retaining the original model. The subsequent performance revision changed the fitted models and selected allocation independently on development campaigns. The coverage correction preserves those numeric predictor values and properly labels their observation scope. The metrics revision measures the existing models more completely; adding metrics is not a new improvement in their predictions.
@@ -79,7 +75,7 @@ This semantic correction adds **no measured model-performance gain** when predic
 
 - Expected-NCM prediction: CP07 RMSE falls from **63.3694 to 62.7385** (1.00%), and MAE from **27.4111 to 26.4806** (3.39%).
 - Historical logistic experiment: the more complex version produced small changes in average precision and probability quality, with uncertainty including zero improvement. Recall was lower at its separately chosen threshold because fewer customers were flagged. The current baseline restores the original specification for simplicity.
-- Feasible allocation: **RANDOM_FREE_SHIP** wins the rerun CP04-CP06 development comparison. Production instead uses **HURDLE_XGB_HALF with the user-requested greedy allocator**. For the separate random-free-shipping comparator, averaging feasible random recipient sets gives CP07 DR incremental NCM of **$7.90 per customer** versus no offer; its paired difference versus the original-model greedy policy is **$3.93**, 95% interval **[-$2.12, $10.44]**.
+- Feasible allocation: **RANDOM_FREE_SHIP** wins the rerun CP04-CP06 development comparison. Production instead uses **HURDLE_XGB_HALF with the user-requested MILP allocator**. For the separate random-free-shipping comparator, averaging feasible random recipient sets gives CP07 DR incremental NCM of **$7.90 per customer** versus no offer; its paired difference versus the original-model MILP policy is **$3.93**, 95% interval **[-$2.12, $10.44]**.
 
 CP07 was already inspected in earlier project work. These are **retrospective comparisons**, not a new untouched confirmatory test. They are not realized July gains. The choice of a model-driven deployment is explicit and is not evidence that personalization improves profit.
 
@@ -93,7 +89,7 @@ The reference is commit `ea950d0e9011ff0e105f5d93758ab54944a7c75f`. The original
 | original_refit_current_environment | profit_prediction | ORIGINAL_TLEARNER | 63.3694 | 27.4111 | 0.0059 |
 | corrected_predictive_champion | profit_prediction | HURDLE_XGB_HALF | 62.7385 | 26.4806 | 0.0256 |
 
-Predictive champion: **HURDLE_XGB_HALF**. Deployment forecast model: **HURDLE_XGB_HALF**, used by the greedy allocator. Development-policy winner: **RANDOM_FREE_SHIP**. Prediction accuracy does not establish good treatment-effect ranking. Primary 14-day NCM unchanged: **True**. Feature columns with changed numerical/category values: **0**; separately renamed observation-scope fields: **19**. Factual CP07 predictions changed for **1060** assignments in the earlier prediction revision. Replacing the allocator does not change those fitted predictions.
+Predictive champion: **HURDLE_XGB_HALF**. Deployment forecast model: **HURDLE_XGB_HALF**, used by the MILP allocator. Development-policy winner: **RANDOM_FREE_SHIP**. Prediction accuracy does not establish good treatment-effect ranking. Primary 14-day NCM unchanged: **True**. Feature columns with changed numerical/category values: **0**; separately renamed observation-scope fields: **19**. Factual CP07 predictions changed for **1060** assignments in the earlier prediction revision. Replacing the allocator does not change those fitted predictions.
 
 In the prior model-performance revision, compared with reliability revision `1221dd1`, **1,403 of 2,776 July actions changed**. That is a concrete behavior change, not proof of higher realized profit. The comparison and input fingerprint are saved in `performance_revision_changes.json`.
 
@@ -163,25 +159,25 @@ Negative margins remain valid. MAPE is unsuitable for the many zero-NCM outcomes
 
 ## Compare feasible policies and document the deployment choice
 
-Development compares 21 allocation rules, including greedy allocations from model forecasts, pooled/segment shrinkage rules, and simple baselines. Every fold uses earlier campaigns for reward and cost fitting, with the same budget, offer cap, PCT_20 cap, and reserved controls. All model-based candidates now use `deterministic_incremental_ncm_greedy`. The development winner maximizes pooled customer-weighted DR value. The separate deployment decision is: **User-requested model-driven allocation using the predictive champion and deterministic greedy allocation; not a claim of historical policy superiority.**
+Development compares 21 allocation rules, including MILP allocations from model forecasts, pooled/segment shrinkage rules, and simple baselines. Every fold uses earlier campaigns for reward and cost fitting, with the same budget, offer cap, PCT_20 cap, and reserved controls. All model-based candidates now use `scipy_highs_milp`. The development winner maximizes pooled customer-weighted DR value. The separate deployment decision is: **User-requested model-driven allocation using the predictive champion and constrained MILP; not a claim of historical policy superiority.**
 
 | policy | n | development_dr_incremental_ncm |
 | --- | --- | --- |
 | RANDOM_FREE_SHIP | 3237 | 3.8176 |
+| SEGMENT_MEMBERSHIP_HISTORY_RIDGE_100 | 3237 | 3.7374 |
+| SEGMENT_MEMBERSHIP_HISTORY_RIDGE_20 | 3237 | 3.7374 |
 | HISTORICAL_MIX | 3237 | 3.3395 |
-| SEGMENT_MEMBERSHIP_HISTORY_RIDGE_100 | 3237 | 2.0797 |
-| SEGMENT_MEMBERSHIP_HISTORY_RIDGE_20 | 3237 | 2.0797 |
-| ACTION_MEAN | 3237 | 1.4569 |
-| SEGMENT_MEMBERSHIP_HISTORY_RIDGE_300 | 3237 | 0.9126 |
-| POOLED_XGBOOST | 3237 | 0.4500 |
-| SEGMENT_MEMBERSHIP_CART_RIDGE_100 | 3237 | 0.3786 |
+| ACTION_MEAN | 3237 | 2.7685 |
+| SEGMENT_MEMBERSHIP_HISTORY_RIDGE_300 | 3237 | 2.7338 |
+| SEGMENT_MEMBERSHIP_CART_RIDGE_100 | 3237 | 2.4945 |
+| SEGMENT_MEMBERSHIP_RIDGE_100 | 3237 | 2.0515 |
 
 Development ranking is selection-biased. The development winner and the configured deployment candidate are evaluated on CP07 with common reward nuisance predictions for all policies. CP07 uses 1,060 randomized assignments and the population-scaled budget. The former unconstrained +$8.73 diagnostic offered promotions to 87.2% of customers and is not the baseline for this comparison. `selected_for_july` and `selected_by_development` are distinct flags in the saved comparison.
 
 | policy | dr_incremental_ncm_per_customer | ci_low | ci_high | hajek_incremental_ncm_per_customer | offered_share |
 | --- | --- | --- | --- | --- | --- |
-| ORIGINAL_TLEARNER | 3.9714 | -2.2311 | 9.6737 | 3.0755 | 0.6000 |
-| ACTION_MEAN | 12.5233 | 3.1494 | 22.5177 | 11.6142 | 0.6000 |
+| ORIGINAL_TLEARNER | 3.9714 | -2.2332 | 9.6825 | 3.0755 | 0.6000 |
+| ACTION_MEAN | 5.5713 | -2.0978 | 13.6234 | 5.9460 | 0.6000 |
 | HURDLE_XGB_HALF | 8.8888 | 0.2528 | 18.0299 | 8.9169 | 0.6000 |
 | ALL_NO_OFFER | 0.0000 | 0.0000 | 0.0000 | 0.0000 | 0.0000 |
 | PROPENSITY_PCT10 | 3.6510 | -2.4921 | 9.7598 | 3.1123 | 0.6000 |
@@ -190,25 +186,25 @@ Development ranking is selection-biased. The development winner and the configur
 
 | reference | paired_dr_difference | ci_low | ci_high |
 | --- | --- | --- | --- |
-| ORIGINAL_TLEARNER | 4.9174 | -2.7122 | 13.2738 |
-| ACTION_MEAN | -3.6346 | -11.5797 | 4.0218 |
+| ORIGINAL_TLEARNER | 4.9174 | -2.7122 | 13.2783 |
+| ACTION_MEAN | 3.3175 | -3.8532 | 11.2412 |
 | HURDLE_XGB_HALF | 0.0000 | 0.0000 | 0.0000 |
 | ALL_NO_OFFER | 8.8888 | 0.2528 | 18.0299 |
 | PROPENSITY_PCT10 | 5.2378 | -3.0086 | 14.8580 |
 | HISTORICAL_MIX | 4.2289 | -4.7588 | 14.1547 |
 | RANDOM_FREE_SHIP | -3.8527 | -12.5708 | 4.1208 |
 
-The configured **HURDLE_XGB_HALF greedy allocation** has CP07 DR gain **$8.89**, interval **[$0.25, $18.03]**, and paired difference versus the original-model greedy allocation of **$4.92**, interval **[$-2.71, $13.27]**. These results evaluate a policy, not prediction RMSE.
+The configured **HURDLE_XGB_HALF MILP allocation** has CP07 DR gain **$8.89**, interval **[$0.25, $18.03]**, and paired difference versus the original-model MILP allocation of **$4.92**, interval **[$-2.71, $13.28]**. These results evaluate a policy, not prediction RMSE.
 
-The separate seed-42 RANDOM_FREE_SHIP comparator has CP07 DR gain **$12.74**, interval **[$3.59, $22.66]**. The following diagnostic averages random recipient sets with the same controls; its numbers belong to the random comparator, not the deployed greedy allocation:
+The separate seed-42 RANDOM_FREE_SHIP comparator has CP07 DR gain **$12.74**, interval **[$3.59, $22.66]**. The following diagnostic averages random recipient sets with the same controls; its numbers belong to the random comparator, not the deployed MILP allocation:
 
 | comparison | gain | ci_low | ci_high |
 | --- | --- | --- | --- |
 | versus NO_OFFER | 7.9018 | 1.3563 | 15.3476 |
-| versus ORIGINAL_TLEARNER | 3.9304 | -2.1177 | 10.4405 |
+| versus ORIGINAL_TLEARNER | 3.9304 | -2.1150 | 10.4401 |
 | versus RANDOM_FREE_SHIP | -4.8396 | -9.7655 | -0.0505 |
 
-The random-recipient diagnostic does not retune selection and is not evidence that the requested greedy allocation is superior. A fixed seed alone does not make one random recipient realization representative. The deployment choice is explicit configuration, while the development ranking and uncertainty remain visible. A new randomized campaign is needed to assess future performance.
+The random-recipient diagnostic does not retune selection and is not evidence that the requested MILP allocation is superior. A fixed seed alone does not make one random recipient realization representative. The deployment choice is explicit configuration, while the development ranking and uncertainty remain visible. A new randomized campaign is needed to assess future performance.
 
 Actual logging probabilities were not supplied. Primary estimates assume unconditional randomized assignment within campaign and use empirical action frequencies; uniform-0.25 sensitivity is also saved. Customer-cluster bootstrap draws retain repeated-customer observations and re-estimate logging frequencies. Policy intervals use 2,000 draws, condition on fitted models and fixed allocations, and omit future campaign drift and full retraining uncertainty. Nominal test intervals are not adjusted for repeated earlier inspection of CP07.
 

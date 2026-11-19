@@ -57,7 +57,7 @@
   "selected_method": "HURDLE_XGB_HALF",
   "selected_policy": "HURDLE_XGB_HALF",
   "allocation_model": "HURDLE_XGB_HALF",
-  "allocator": "deterministic_incremental_ncm_greedy",
+  "allocator": "scipy_highs_milp",
   "validation_selected_policy": "RANDOM_FREE_SHIP",
   "forecast_config": {
     "family": "hurdle",
@@ -80,7 +80,7 @@
     "learning_rate": 0.03
   },
   "xgb_selected_role": "reference T-learner / existing cost-model parameters, not the selected hurdle configuration",
-  "selection": "User-requested model-driven allocation using the predictive champion and deterministic greedy allocation; not a claim of historical policy superiority.",
+  "selection": "User-requested model-driven allocation using the predictive champion and constrained MILP; not a claim of historical policy superiority.",
   "final_train_rows": {
     "NO_OFFER": 1826,
     "PCT_10": 1902,

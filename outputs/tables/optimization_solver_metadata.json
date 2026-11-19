@@ -1,0 +1,15 @@
+{
+  "solver_status": "Optimal",
+  "allocator": "scipy_highs_milp",
+  "solver": "scipy.optimize.milp / HiGHS",
+  "objective": 2501.7833760103467,
+  "primary_objective": 2501.7833760103467,
+  "primary_mip_gap": 0.0,
+  "primary_objective_upper_bound": 2501.7833760103467,
+  "returned_objective_gap_dollars": 0.0,
+  "primary_optimality_certified": true,
+  "optimality_scope": "Primary MILP solved to optimality within solver numerical tolerances; secondary tie-breaking preserves NCM within tie_tolerance plus numerical tolerance",
+  "secondary_mip_gap": 0.0,
+  "tie_tolerance": 1e-07,
+  "policy_name": "HURDLE_XGB_HALF"
+}
