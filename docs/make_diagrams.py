@@ -1,4 +1,10 @@
-"""Draws the workflow / lineage / roadmap diagrams used in Walmart_Pipeline_Walkthrough.md (run: python docs/make_diagrams.py)."""
+"""Historical diagram generator retained for the early project snapshot.
+
+These diagrams describe the earlier incomplete pipeline, not the current
+deployment. The current walkthrough does not embed them. See notebook 09's
+greedy allocation and docs/Walmart_Pipeline_Walkthrough.md for the active flow.
+Running this file regenerates only the historical diagrams in docs/figures/.
+"""
 from pathlib import Path
 import matplotlib.pyplot as plt
 from matplotlib.patches import FancyBboxPatch, FancyArrowPatch

@@ -24,7 +24,7 @@ from src.profit_models import PROFIT_CANDIDATES, fit_profit_models
 from src.evaluation import (JULY_BUDGET, JULY_SIZE, tune_on_prior_campaigns, fit_cost_models,
                             predict_costs, value_table, evaluate_policy, cluster_dr_interval,
                             _paired_dr_frame)
-from src.policy import optimize_policy, build_baseline_policies, get_holdout
+from src.policy import ALLOCATOR_NAME, optimize_policy, build_baseline_policies, get_holdout
 from src.policy_learning import POLICY_GRID, fit_segment_models, policy_name, stochastic_free_ship_scores
 
 
@@ -101,7 +101,7 @@ def evaluate_campaign(history, campaign, num, cat, draws, candidate_names=None):
     # purchase-propensity baseline. Each fold fits earlier campaigns only;
     # there is no separate feature-transform or regularization search here.
     # Dense logistic fits do not benefit from the machine-wide BLAS pool here.
-    # Scope the limit to this stage and restore it before XGBoost/HiGHS; changing
+    # Scope the limit to this stage and restore it before XGBoost; changing
     # OpenMP settings globally can change XGBoost's randomized training results.
     with threadpool_limits(limits=4, user_api="blas"):
         purchase_config = load_logistic_baseline_config()["config"]
@@ -123,17 +123,21 @@ def evaluate_campaign(history, campaign, num, cat, draws, candidate_names=None):
         summary, individual = evaluate_policy(test, allocation, nuisance, costs, name, campaign, draws=draws)
         summary["inner_validation_campaign"] = inner_campaign
         summary["fold_parameters"] = json.dumps(params, sort_keys=True)
+        summary["allocation_algorithm"] = allocation.attrs["allocator"]
         summaries.append(summary)
         scores.append(individual)
-        allocations.append(allocation.assign(policy=name, evaluation_campaign=campaign))
+        allocations.append(allocation.assign(policy=name, evaluation_campaign=campaign,
+                                             allocation_algorithm=allocation.attrs["allocator"]))
         factual = predictions[np.arange(len(test)), [ACTIONS.index(a) for a in test.offer_type]]
         metrics.append(dict(split=campaign, model=name, **reg_metrics(test.ncm_14d, factual)))
     hist_mix = train_all.loc[train_all.assignment_source.eq("business_rule") & train_all.offer_type.ne("NO_OFFER"), "offer_type"].value_counts(normalize=True).to_dict()
     for name, allocation in build_baseline_policies(reference_values, historical_mix=hist_mix, **kwargs).items():
         summary, individual = evaluate_policy(test, allocation, nuisance, costs, name, campaign, draws=draws)
+        summary["allocation_algorithm"] = "feasible_baseline_rule"
         summaries.append(summary)
         scores.append(individual)
-        allocations.append(allocation.assign(policy=name, evaluation_campaign=campaign))
+        allocations.append(allocation.assign(policy=name, evaluation_campaign=campaign,
+                                             allocation_algorithm="feasible_baseline_rule"))
     scores = pd.concat(scores, ignore_index=True)
     scores["unseen_customer"] = ~scores.customer_id.isin(train_all.customer_id)
     scores["unseen_no_observed_recent_orders"] = scores.first_exposure_no_observed_recent_orders & scores.unseen_customer
@@ -214,6 +218,8 @@ def run_policy_search(history, num, cat, out, draws=2000):
                     grid=POLICY_GRID, additional_profit_model=PROFIT_CANDIDATES["HURDLE_XGB_HALF"],
                     random_seed=42, bootstrap_draws=draws, OMP_NUM_THREADS=os.environ.get("OMP_NUM_THREADS", "unset"))
     decision["purchase_baseline_selection"] = "user-fixed original logistic from config/logistic_baseline.json; earlier-campaign fit only; no nested search"
+    decision["model_allocator"] = ALLOCATOR_NAME
+    decision["selection_role"] = "Development-policy comparison only; deployment preference is recorded separately in config/allocation_policy.json"
     decision["execution"] = "fresh spawn process per campaign; 300-second worker timeout; native OpenMP settings unchanged"
     # This file is serialized before any CP07 target values are evaluated.
     (out/"selection.json").write_text(json.dumps(decision, indent=2)+"\n")

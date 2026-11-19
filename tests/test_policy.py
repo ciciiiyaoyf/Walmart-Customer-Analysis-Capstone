@@ -35,12 +35,14 @@ def brute_force_optimum(v, budget, offer_share, pct20_share, holdout=()):
     return best
 
 
-def test_milp_matches_exhaustive_optimum_with_binding_budget_and_holdout():
+def test_greedy_respects_binding_budget_and_holdout():
     v = values([[0, 8, 12, 3], [0, 6, 11, 5], [0, 7, 8, 2], [0, 9, 15, 4]],
                [[0, 4, 8, 1], [0, 3, 7, 1], [0, 4, 5, 1], [0, 4, 9, 1]])
     hold = ["c03"]
     p = optimize_policy(v, budget=7, max_offer_share=.75, max_pct20_share=.5, holdout_ids=hold)
-    assert p.estimated_incremental_ncm.sum() == pytest.approx(brute_force_optimum(v, 7, .75, .5, hold))
+    assert assert_feasible(p, budget=7, max_offer_share=.75, max_pct20_share=.5, holdout_ids=hold)
+    assert p.estimated_promo_cost.sum() == pytest.approx(7)
+    assert p.estimated_incremental_ncm.sum() > 0
     assert p.set_index("customer_id").loc["c03", "recommended_action"] == "NO_OFFER"
 
 
@@ -96,3 +98,77 @@ def test_bad_inputs_fail_loudly(problem):
         kwargs["holdout_ids"] = ["unknown"]
     with pytest.raises(ValueError):
         optimize_policy(v, **kwargs)
+
+
+def test_greedy_can_miss_global_optimum_and_reports_heuristic_status():
+    # Taking the largest single gain uses all budget; two smaller gains together
+    # would be better. This documents the heuristic's genuine limitation.
+    v = values([[0, -1, -1, 10], [0, -1, -1, 6], [0, -1, -1, 6]],
+               [[0, 1, 1, 10], [0, 1, 1, 5], [0, 1, 1, 5]])
+    p = optimize_policy(v, budget=10, max_offer_share=1)
+    assert p.estimated_incremental_ncm.sum() == pytest.approx(10)
+    assert brute_force_optimum(v, 10, 1, .15) == pytest.approx(12)
+    assert p.attrs['solver_status'] == 'Feasible heuristic'
+    assert p.attrs['allocator'] == 'deterministic_incremental_ncm_greedy'
+    assert p.attrs['global_optimality_guaranteed'] is False
+
+
+def test_greedy_uses_affordable_alternative_when_best_offer_exceeds_budget():
+    v = values([[0, 8, -1, 5]], [[0, 10, 1, 2]])
+    p = optimize_policy(v, budget=2, max_offer_share=1)
+    assert p.recommended_action.tolist() == ['FREE_SHIP']
+    assert p.estimated_incremental_ncm.sum() == 5
+
+
+def test_pct20_upgrades_after_non20_recipients_establish_denominator():
+    p = optimize_policy(values([[0, 1, 100, 1]] * 7), budget=7, max_offer_share=1)
+    assert p.recommended_action.ne('NO_OFFER').sum() == 7
+    assert p.recommended_action.eq('PCT_20').sum() == 1
+    assert p.estimated_incremental_ncm.sum() == 106
+    assert p.attrs['allocation_moves']['pct20_upgrade'] == 1
+
+
+def test_pct20_only_customer_can_be_added_after_six_other_offers():
+    v = values([[0, -1, 100, -1]] + [[0, -1, -1, 1]] * 6)
+    p = optimize_policy(v, budget=7, max_offer_share=1)
+    assert p.set_index('customer_id').loc['c00', 'recommended_action'] == 'PCT_20'
+    assert p.attrs['allocation_moves']['pct20_addition'] == 1
+    assert p.recommended_action.ne('NO_OFFER').sum() == 7
+
+
+def test_pct20_only_customer_can_replace_weaker_recipient_at_offer_cap():
+    v = values([[0, -1, 100, -1]] + [[0, -1, -1, 1]] * 7)
+    p = optimize_policy(v, budget=7, max_offer_share=7/8)
+    assert p.recommended_action.ne('NO_OFFER').sum() == 7
+    assert p.recommended_action.eq('PCT_20').sum() == 1
+    assert p.estimated_incremental_ncm.sum() == 106
+    assert p.attrs['allocation_moves']['pct20_replacement'] == 1
+    assert assert_feasible(p, budget=7, max_offer_share=7/8)
+
+
+def test_pct20_with_full_allowed_share_needs_no_supporting_offers():
+    v = values([[0, -1, 5, -1]] * 3)
+    p = optimize_policy(v, budget=3, max_offer_share=1, max_pct20_share=1)
+    assert p.recommended_action.eq('PCT_20').all()
+    unsupported = optimize_policy(v, budget=3, max_offer_share=1)
+    assert unsupported.recommended_action.eq('NO_OFFER').all()
+
+
+def test_refill_after_cost_saving_upgrade_preserves_actual_pct20_share():
+    gains = [[0, 10, 20, -1]] + [[0, -1, -1, 1]] * 6 + [[0, -1, -1, .5]]
+    costs = [[0, 5, 1, 1]] + [[0, 1, 1, 1]] * 7
+    p = optimize_policy(values(gains, costs), budget=11, max_offer_share=1)
+    assert p.recommended_action.ne('NO_OFFER').sum() == 8
+    assert p.recommended_action.eq('PCT_20').sum() == 1
+    assert p.attrs['allocation_moves']['non_pct20_refill'] == 1
+    assert assert_feasible(p, budget=11, max_offer_share=1)
+
+
+def test_greedy_row_order_invariance_with_distinct_costs_and_pct20_moves():
+    v = values([[0, -1, 100, -1]] + [[0, 2, 3, 1]] * 8,
+               [[0, 1, 2, 1]] + [[0, 2, 3, 1]] * 8)
+    first = optimize_policy(v, budget=12, max_offer_share=8/9, holdout_ids=['c08'])
+    shuffled = optimize_policy(v.sample(frac=1, random_state=99), budget=12,
+                               max_offer_share=8/9, holdout_ids=['c08'])
+    pd.testing.assert_frame_equal(first, shuffled)
+    assert first.attrs == shuffled.attrs

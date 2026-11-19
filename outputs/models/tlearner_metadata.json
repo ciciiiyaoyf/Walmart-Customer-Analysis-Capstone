@@ -55,8 +55,10 @@
     "observed_top_purchase_category_90d"
   ],
   "selected_method": "HURDLE_XGB_HALF",
-  "selected_policy": "RANDOM_FREE_SHIP",
+  "selected_policy": "HURDLE_XGB_HALF",
   "allocation_model": "HURDLE_XGB_HALF",
+  "allocator": "deterministic_incremental_ncm_greedy",
+  "validation_selected_policy": "RANDOM_FREE_SHIP",
   "forecast_config": {
     "family": "hurdle",
     "purchase": "xgb",
@@ -78,7 +80,7 @@
     "learning_rate": 0.03
   },
   "xgb_selected_role": "reference T-learner / existing cost-model parameters, not the selected hurdle configuration",
-  "selection": "maximum pooled customer-weighted DR incremental NCM under common feasible constraints",
+  "selection": "User-requested model-driven allocation using the predictive champion and deterministic greedy allocation; not a claim of historical policy superiority.",
   "final_train_rows": {
     "NO_OFFER": 1826,
     "PCT_10": 1902,
@@ -86,8 +88,8 @@
     "FREE_SHIP": 1906
   },
   "cp07_pooled": {
-    "rmse": 62.738469818744626,
+    "rmse": 62.73846981874463,
     "mae": 26.48058868350611,
-    "r2": 0.025561057376450202
+    "r2": 0.0255610573764502
   }
 }

@@ -71,5 +71,7 @@
   "bootstrap_draws": 2000,
   "OMP_NUM_THREADS": "unset",
   "purchase_baseline_selection": "user-fixed original logistic from config/logistic_baseline.json; earlier-campaign fit only; no nested search",
+  "model_allocator": "deterministic_incremental_ncm_greedy",
+  "selection_role": "Development-policy comparison only; deployment preference is recorded separately in config/allocation_policy.json",
   "execution": "fresh spawn process per campaign; 300-second worker timeout; native OpenMP settings unchanged"
 }

@@ -6,9 +6,11 @@ This project recommends `NO_OFFER`, `PCT_10`, `PCT_20`, or `FREE_SHIP` for each 
 
 **The original logistic regression supplies the one purchase-propensity baseline.** It ranks customers by predicted purchase probability; its CP07 average precision is **0.2323** and recall is **60.88%** at the frozen development threshold. Step 05 uses the original preprocessing and `C=0.01`, as recorded in `config/logistic_baseline.json`. The more complex transformed/interacted version remains an optional experiment record in `outputs/experiments/propensity/`; it is not used for current baseline scoring. Restoring the simpler specification follows the project owner's choice after inspecting the retrospective comparison, not evidence of a new accuracy gain. See [the restoration verification](outputs/original_logistic_validation.json) for execution checks and forecast changes.
 
-**Measured outcome of the performance revision:** two-part XGBoost reduces CP07 NCM RMSE from **63.3694 to 62.7385** (1.00%) and MAE from **27.4111 to 26.4806** (3.39%). A simple constrained `RANDOM_FREE_SHIP` policy wins development validation and replaces personalized allocation. Averaging feasible random recipient sets, its retrospective CP07 DR gain is **$7.90 per customer** versus no offer, and **$3.93** versus the original feasible policy, with paired 95% interval **[-$2.12, $10.44]**. Policy superiority remains uncertain.
+**Current allocation:** the submission uses the profit model's predicted incremental NCM with a deterministic constrained greedy allocator, replacing MILP at the project owner's request. `config/allocation_policy.json` records this deployment choice. The allocator respects the budget, offer limits, and reserved controls, but is a heuristic without a general global-optimality guarantee. This change does not establish better prediction accuracy or historical policy performance.
 
-The saved seed-42 allocation happens to produce a more favorable CP07 estimate: $12.74 versus no offer and a paired $8.77 improvement over the original, interval [$0.36, $18.33]. That result conditions on the chosen recipients. It must not be presented as a reliable gain across recipient randomizations or as observed July profit.
+**Measured outcome of the earlier performance revision:** two-part XGBoost reduces CP07 NCM RMSE from **63.3694 to 62.7385** (1.00%) and MAE from **27.4111 to 26.4806** (3.39%). The prior allocation search selected `RANDOM_FREE_SHIP`. Averaging feasible random recipient sets, that revision reported retrospective CP07 DR gain of **$7.90 per customer** versus no offer, and **$3.93** versus its original feasible comparator, with paired 95% interval **[-$2.12, $10.44]**. These are historical results from before the allocator replacement. The refreshed validation report evaluates the current greedy policies separately.
+
+The prior saved seed-42 random allocation produced a more favorable CP07 estimate: $12.74 versus no offer and a paired $8.77 improvement over the prior original comparator, interval [$0.36, $18.33]. That result conditions on the chosen recipients. It must not be presented as evidence for the newly deployed greedy policy or as observed July profit.
 
 The earlier performance revision changed the fitted models and selected allocation. The subsequent transaction-coverage correction labels 19 purchase/return/product predictors as `observed_*` and adds separate coverage diagnostics. It preserves all 43 model input values, their order, and the original decision windows; it adds no predictive accuracy gain. The XGBoost improvements above come from the prior model revision. [The validation report](docs/VALIDATION_REPORT.md) separates these improvements and their limits.
 
@@ -62,10 +64,10 @@ The final `policy_submission.csv` is also copied to `outputs/final/`. Its column
 | 03 | `03_construct_14_day_outcomes` | Construct purchases, NCM, promotion cost, and explicit refund-timing outcomes |
 | 04 | `04_business_analysis` | Descriptive KPIs and exploration-only effects with customer-clustered uncertainty |
 | 05 | `05_logistic_propensity_model` | One logistic purchase baseline; average precision and recall using a frozen development threshold |
-| 06 | `06_tlearner_xgboost` | Two-part XGBoost, profit bias/calibration and component diagnostics, separate policy selection |
+| 06 | `06_tlearner_xgboost` | Two-part XGBoost, profit bias/calibration and component diagnostics, historical policy comparisons |
 | 07 | `07_score_july_population` | Rebuild features and coverage diagnostics at each July cutoff and score each action |
 | 08 | `08_estimate_promotion_cost` | Expected promotion cost per customer and action |
-| 09 | `09_milp_policy_optimization` | Reserve randomized controls and solve the constrained allocation |
+| 09 | `09_greedy_policy_allocation` | Reserve randomized controls and apply deterministic constrained greedy allocation |
 | 10 | `10_generate_outputs` | Submission, feasible baseline projections, policy audit, and measurement assignment |
 
 The notebooks read saved outputs from previous steps. Shared modules in `src/` contain feature, outcome, model, inference, and allocation logic so validation can use the same definitions as July scoring. See the [updated walkthrough](docs/Walmart_Pipeline_Walkthrough.md).
@@ -92,7 +94,7 @@ Squared-error fitting and RMSE are appropriate diagnostics for **expected dollar
 
 The predictive search compares 14 fixed expected-NCM configurations on rolling CP04-CP06 validation, fitting prior campaigns only. Minimum pooled factual RMSE selects `HURDLE_XGB_HALF`: pooled XGBoost purchase probability times a signed purchaser-margin estimate, shrunk 50% toward each training arm's purchaser mean. It handles the roughly 88% nonbuyer zeros without discarding negative profit. The separate original logistic baseline retains all 43 registered customer features, imputes and standardizes numeric inputs, encodes categories, and uses `C=0.01`. It adds no log transformations, interactions, or extra probability calibration. The project requires a purchase-propensity baseline; logistic regression is the implemented choice, not a mandated algorithm.
 
-A separate development search compares 21 feasible allocation rules, including model optimizers, pooled/segment rules, and simple baselines. Maximum pooled development DR value selects `RANDOM_FREE_SHIP`. Prediction and allocation winners answer different questions. The previous rule that kept the original unless a multiple-comparison-adjusted interval excluded zero has been replaced by transparent validation ranking with uncertainty reported separately. All choices are saved before the CP07 retrospective comparison. See `outputs/experiments/` for the full search results.
+A separate development search compares 21 feasible allocation rules, including model-driven allocators, pooled/segment rules, and simple baselines. The current search uses the same greedy allocator as deployment for model-driven candidates. Its highest development DR value is recorded separately as `validation_selected_policy`; it is not silently substituted for the requested model-driven submission. Deployment uses the predictive champion's scores with greedy allocation, as recorded in `config/allocation_policy.json`. Prediction accuracy, development policy ranking, and the requested deployment method are different decisions. See `outputs/experiments/` and the validation report for the complete comparisons and uncertainty.
 
 Logged assignment probabilities are not supplied. Evaluation estimates action frequencies separately within each campaign and therefore assumes unconditional randomized offers within campaign. A uniform 25%-per-action sensitivity is also reported. The customer-cluster bootstrap retains all sampled customers' campaign observations and re-estimates campaign action frequencies in each draw. Its intervals are conditional on the fitted outcome/cost models and fixed allocations; they do not include model-refitting uncertainty or future campaign drift.
 
@@ -156,9 +158,11 @@ The allocation uses one action per customer and enforces:
 - Expected promotion spend no greater than **$62,000**.
 - At most **60%** receiving a commercial offer.
 - `PCT_20` no greater than **15% of commercial-offer recipients**.
-- At least **5%** randomly reserved as measurement controls and assigned `NO_OFFER`.
+- At least **5%** reserved as measurement controls and assigned `NO_OFFER`; the current implementation samples these controls uniformly at random before allocation.
 
-The candidate optimizer uses SciPy/HiGHS through `src/policy.py`, without PuLP or a machine-specific CBC executable path. The production allocation follows the development-selected feasible policy; currently this is seeded random FREE_SHIP assignment under the same budget, offer cap, and controls. The improved XGBoost model still supplies action-value forecasts. Unused budget is acceptable, and feasibility under predicted spend is distinct from calibration of actual spend.
+The production allocator in `src/policy.py` uses deterministic greedy decisions based on positive predicted incremental NCM. It considers all three commercial actions, enforces the PCT_20 limit against the actual number of recipients, and retains the same preselected controls. It does not call an integer-programming solver or promise a global optimum. The forecast model still supplies the four action values and separate cost models supply expected spending. Unused budget is acceptable, and feasibility under predicted spend is distinct from calibration of actual spend.
+
+For the current July scores, all customers' predicted best action is FREE_SHIP and both percentage discounts have negative incremental NCM. The allocation therefore reduces to selecting the highest free-shipping gains among non-control customers, subject to the 60% cap. Replacing the allocation algorithm does not change those model predictions or create profitable discount segments. `greedy_policy_detailed.csv` and the `MODEL_GREEDY` comparison row identify the model-driven allocation; `SELECTED_POLICY` identifies the submitted rule.
 
 For July cost models, Step 08 selects XGBoost or an action-mean predictor **separately for each commercial action using CP06 RMSE**, with the simpler mean winning ties. The choice is fixed before CP07 evaluation and then refitted for July. Cost diagnostics include absolute and relative mean bias; a lower RMSE alone does not guarantee calibrated aggregate spend.
 
@@ -171,6 +175,8 @@ Required baselines are no offers, PCT_10 by propensity, and the feasible histori
 Compare **all customers randomized to the policy arm**, including those it assigns `NO_OFFER`, with the randomized control arm. Comparing only selected offer recipients with a random population holdout would confound targeting with intervention effects.
 
 Specify the NCM/return window, analysis, stopping rule, and power before launch. The minimum 5% controls satisfies the project constraint but does not guarantee adequate statistical power. Offer-specific effects need suitable randomization within predefined target groups.
+
+[Control-group options](docs/CONTROL_GROUP_OPTIONS.md) distinguishes uniform random controls, stratified random controls, and selecting controls from customers who already receive no offer. The allocator replacement leaves the current 139 random controls unchanged; stratification has not been adopted.
 
 ## Repository contents
 

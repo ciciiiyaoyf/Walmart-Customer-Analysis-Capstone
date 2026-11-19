@@ -1,5 +1,5 @@
 {
   "forecast_model": "HURDLE_XGB_HALF",
   "allocation_model": "HURDLE_XGB_HALF",
-  "selected_policy": "RANDOM_FREE_SHIP"
+  "selected_policy": "HURDLE_XGB_HALF"
 }

@@ -35,7 +35,7 @@ def dollars(value, decimals=0):
     return "$" + f"{value:,.{decimals}f}"
 
 
-pol = table("optimized_policy_detailed.csv")
+pol = table("selected_policy_detailed.csv")
 act = table("policy_action_summary.csv")
 cmp = table("baseline_policy_comparison.csv")
 aud = table("customer_policy_audit.csv")
@@ -44,6 +44,7 @@ selection_path = ROOT / "outputs" / "models" / "policy_selection.json"
 selection = json.loads(selection_path.read_text(encoding="utf-8")) if selection_path.exists() else {}
 selected_policy = selection.get("selected_policy", selection.get("selected_method", "see saved selection"))
 forecast_model = selection.get("forecast_model", "see saved model comparison")
+validation_selected_policy = selection.get("validation_selected_policy", selected_policy)
 logistic_comparison = table("logistic_cp07_comparison.csv", optional=True)
 logistic_intervals = table("logistic_cp07_paired_bootstrap.csv", optional=True)
 purchase_headline = table("purchase_headline_metrics.csv", optional=True)
@@ -52,7 +53,6 @@ profit_bias = table("profit_bias_by_offer.csv", optional=True)
 profit_calibration = table("profit_calibration_by_offer.csv", optional=True)
 hurdle_purchase = table("hurdle_purchase_metrics.csv", optional=True)
 purchaser_margin = table("purchaser_margin_metrics.csv", optional=True)
-milp = table("milp_policy_detailed.csv", optional=True)
 july_coverage = table("july_transaction_coverage.csv", optional=True)
 july_reference = table("july_organic_reference_window.csv", optional=True)
 
@@ -65,10 +65,13 @@ holdout_share = pol.measurement_holdout.mean()
 
 st.title("PromoPilot · July promotion policy")
 st.caption("July amounts are model projections. Historical randomized-outcome evaluation is shown separately.")
-st.write(f"Selected allocation: **{selected_policy}** · Profit forecast model: **{forecast_model}**")
-st.info("The allocation rule is chosen on CP04–06 constrained policy value. The profit model is chosen "
-        "on predictive error. The model-optimized allocation remains a separate challenger; maximizing "
-        "its forecast does not independently establish profitable targeting.")
+st.write(f"Submitted policy: **{selected_policy}** · Profit forecast model: **{forecast_model}**")
+st.info("The submitted policy uses deterministic greedy allocation based on predicted incremental NCM, "
+        "under the campaign limits and reserved controls. This deployment method was requested by the "
+        "project owner; it is not a claim that it won historical policy validation. Greedy allocation "
+        "does not guarantee a global optimum or realized profit.")
+st.caption(f"Historical development winner: {validation_selected_policy}. "
+           "Its evaluation remains a separate comparison with the submitted policy.")
 
 tab1, tab2, tab3, tab4, tab_models, tab5 = st.tabs(
     ["Overview", "Policy mix", "Projected policies", "Historical evaluation", "Model performance", "Customer lookup"]
@@ -84,13 +87,8 @@ with tab1:
     st.progress(min(spend / BUDGET, 1.0), text=f"Projected budget used: {spend / BUDGET:.1%}")
     st.progress(min(offer_share / MAX_OFFER, 1.0), text=f"Offer cap used: {offer_share / MAX_OFFER:.1%}")
     st.caption("Budget feasibility uses predicted spend; it is separate from cost calibration.")
-    if selected_policy == "RANDOM_FREE_SHIP":
-        st.write("The selected rule randomly assigns free shipping within the offer cap, keeps the fixed "
-                 "measurement controls, and respects the projected budget. Recipients are not ranked by predicted uplift.")
-    if not milp.empty:
-        aligned = pol.set_index("customer_id").recommended_action
-        challenger = milp.set_index("customer_id").recommended_action.reindex(aligned.index)
-        st.caption(f"The model-optimized challenger assigns a different action to {(aligned != challenger).sum():,} customers.")
+    st.write("Recipients are chosen using predicted incremental NCM. The allocation considers the "
+             "commercial offers, the budget, the offer limit, and the fixed measurement controls.")
     with st.expander("Interpretation and prospective measurement"):
         st.write(
             "July customers have no historical campaign exposure. Their available records contain zero completed "
@@ -163,8 +161,11 @@ with tab3:
         "Every policy is scored with the same fitted outcome models. These are forecasts under a shared "
         "model, not observed outcomes or independent estimates of policy superiority."
     )
-    st.caption("SELECTED_POLICY is the rule used for July. MODEL_OPTIMIZED_MILP maximizes the model's projected value and is retained for comparison.")
-    st.bar_chart(cmp.set_index("policy").total_expected_incremental_ncm)
+    st.caption("SELECTED_POLICY is the submitted greedy allocation. Its identical MODEL_GREEDY alias "
+               "is displayed only once here. RANDOM_FREE_SHIP remains a benchmark; "
+               "PREVIOUS_MILP_REFERENCE is the archived allocation before this change.")
+    displayed_comparison = cmp.loc[cmp.policy.ne("MODEL_GREEDY")]
+    st.bar_chart(displayed_comparison.set_index("policy").total_expected_incremental_ncm)
     show = (
         ["policy"]
         + [f"n_{x}" for x in ACTIONS]
@@ -178,7 +179,7 @@ with tab3:
         ]
     )
     st.dataframe(
-        cmp[[c for c in show if c in cmp]].style.format(
+        displayed_comparison[[c for c in show if c in displayed_comparison]].style.format(
             {
                 "offer_share": "{:.1%}",
                 "pct20_share_among_offered": "{:.1%}",
@@ -201,8 +202,9 @@ with tab4:
         "Displayed test intervals are nominal, not adjusted for choosing the strongest test result."
     )
     st.warning(
-        "CP07 was inspected in the original analysis and audit. The revised selection uses earlier campaigns, "
-        "but this remains retrospective evidence rather than a fresh confirmatory experiment."
+        "CP07 was inspected in the original analysis and audit. Historical candidate fitting uses earlier "
+        "campaigns; the requested deployment-method change follows that prior work. These results remain "
+        "retrospective evidence rather than a fresh confirmatory experiment."
     )
     if heldout.empty:
         st.info("Historical evaluation results are not available in this output snapshot. See docs/VALIDATION_REPORT.md.")
@@ -234,7 +236,7 @@ with tab4:
                     st.pyplot(fig)
                     plt.close(fig)
         preferred = [
-            "split", "policy", "selected_for_july", "n", "dr_ncm_per_customer",
+            "split", "policy", "selected_for_july", "selected_by_development", "n", "dr_ncm_per_customer",
             "dr_incremental_ncm_per_customer", "ci_low", "ci_high",
             "hajek_incremental_ncm_per_customer", "estimated_promo_spend",
             "offered_share", "matched_rows", "effective_sample_size",

@@ -1,12 +1,16 @@
 {
-  "selected_policy": "RANDOM_FREE_SHIP",
-  "selected_config": null,
+  "selected_policy": "HURDLE_XGB_HALF",
+  "selected_config": {
+    "family": "hurdle",
+    "purchase": "xgb",
+    "margin_weight": 0.5
+  },
   "selection_campaigns": [
     "CP04",
     "CP05",
     "CP06"
   ],
-  "selection_metric": "maximum pooled customer-weighted DR incremental NCM under common feasible constraints",
+  "selection_metric": "User-requested model-driven allocation using the predictive champion and deterministic greedy allocation; not a claim of historical policy superiority.",
   "candidate_count": 21,
   "holdout_used_for_selection": false,
   "audit_campaign": "CP07",
@@ -71,11 +75,103 @@
   "bootstrap_draws": 2000,
   "OMP_NUM_THREADS": "unset",
   "purchase_baseline_selection": "user-fixed original logistic from config/logistic_baseline.json; earlier-campaign fit only; no nested search",
+  "model_allocator": "deterministic_incremental_ncm_greedy",
+  "selection_role": "Configured deployment; development comparison preserved in validation_policy_selection",
   "execution": "fresh spawn process per campaign; 300-second worker timeout; native OpenMP settings unchanged",
-  "selected_method": "RANDOM_FREE_SHIP",
+  "selected_method": "HURDLE_XGB_HALF",
   "forecast_model": "HURDLE_XGB_HALF",
   "allocation_model": "HURDLE_XGB_HALF",
-  "rule": "maximum pooled customer-weighted DR incremental NCM under common feasible constraints",
+  "allocator": "deterministic_incremental_ncm_greedy",
+  "rule": "User-requested model-driven allocation using the predictive champion and deterministic greedy allocation; not a claim of historical policy superiority.",
+  "deployment_selection_basis": "User-requested model-driven allocation using the predictive champion and deterministic greedy allocation; not a claim of historical policy superiority.",
+  "allocation_policy_config": {
+    "mode": "forecast_champion_greedy",
+    "allocator": "deterministic_incremental_ncm_greedy",
+    "decision_date": "2026-11-18",
+    "selection_rule": "User-requested model-driven allocation using the predictive champion and deterministic greedy allocation; not a claim of historical policy superiority.",
+    "forecast_selection": "Retain the profit model selected by prior-campaign factual RMSE; this allocation change does not refit or retune its predictions.",
+    "holdout_design": "Existing uniform random 5% measurement holdout; stratified selection has only been discussed, not adopted.",
+    "validation_requirement": "Compare all allocation candidates using the same greedy algorithm, constraints, and earlier-campaign data; report the development winner separately from the deployment decision.",
+    "optimality_claim": "Feasible deterministic heuristic; no general global-optimality guarantee."
+  },
+  "validation_selected_policy": "RANDOM_FREE_SHIP",
+  "validation_policy_selection": {
+    "selected_policy": "RANDOM_FREE_SHIP",
+    "selected_config": null,
+    "selection_campaigns": [
+      "CP04",
+      "CP05",
+      "CP06"
+    ],
+    "selection_metric": "maximum pooled customer-weighted DR incremental NCM under common feasible constraints",
+    "candidate_count": 21,
+    "holdout_used_for_selection": false,
+    "audit_campaign": "CP07",
+    "audit_status": "retrospective: already inspected in prior project work",
+    "uncertainty": "Validation winner is selection-biased; intervals condition on fixed models and allocations.",
+    "grid": [
+      {
+        "segment": "membership",
+        "shrinkage": 20.0
+      },
+      {
+        "segment": "membership",
+        "shrinkage": 100.0
+      },
+      {
+        "segment": "membership",
+        "shrinkage": 300.0
+      },
+      {
+        "segment": "membership_tier",
+        "shrinkage": 20.0
+      },
+      {
+        "segment": "membership_tier",
+        "shrinkage": 100.0
+      },
+      {
+        "segment": "membership_tier",
+        "shrinkage": 300.0
+      },
+      {
+        "segment": "membership_cart",
+        "shrinkage": 20.0
+      },
+      {
+        "segment": "membership_cart",
+        "shrinkage": 100.0
+      },
+      {
+        "segment": "membership_cart",
+        "shrinkage": 300.0
+      },
+      {
+        "segment": "membership_history",
+        "shrinkage": 20.0
+      },
+      {
+        "segment": "membership_history",
+        "shrinkage": 100.0
+      },
+      {
+        "segment": "membership_history",
+        "shrinkage": 300.0
+      }
+    ],
+    "additional_profit_model": {
+      "family": "hurdle",
+      "purchase": "xgb",
+      "margin_weight": 0.5
+    },
+    "random_seed": 42,
+    "bootstrap_draws": 2000,
+    "OMP_NUM_THREADS": "unset",
+    "purchase_baseline_selection": "user-fixed original logistic from config/logistic_baseline.json; earlier-campaign fit only; no nested search",
+    "model_allocator": "deterministic_incremental_ncm_greedy",
+    "selection_role": "Development-policy comparison only; deployment preference is recorded separately in config/allocation_policy.json",
+    "execution": "fresh spawn process per campaign; 300-second worker timeout; native OpenMP settings unchanged"
+  },
   "prediction_selection": {
     "selected_model": "HURDLE_XGB_HALF",
     "config": {
@@ -185,5 +281,5 @@
     },
     "test_status": "CP07 retrospective; never used by this model-selection script"
   },
-  "distinction": "Forecast model minimizes factual RMSE; allocation maximizes development constrained DR value."
+  "distinction": "Forecast model minimizes factual RMSE. Deployment uses its predictions with the user-requested greedy allocator; the development policy winner remains a separate comparison."
 }

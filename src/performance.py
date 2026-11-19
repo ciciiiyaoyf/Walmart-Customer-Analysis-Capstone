@@ -7,7 +7,19 @@ import pandas as pd
 
 from src.modeling import ACTIONS, predict_actions, fit_action_models
 from src.profit_models import fit_profit_models
+from src.policy import ALLOCATOR_NAME
 from src.evaluation import cluster_dr_interval, _paired_dr_frame, tune_on_prior_campaigns
+
+
+def load_allocation_policy_config(root=None):
+    """Load the explicit deployment choice independently of policy validation."""
+    root = Path(root) if root is not None else Path(__file__).resolve().parents[1]
+    config = json.loads((root / "config/allocation_policy.json").read_text(encoding="utf-8"))
+    if config.get("mode") != "forecast_champion_greedy":
+        raise ValueError("Unknown allocation-policy mode")
+    if config.get("allocator") != ALLOCATOR_NAME:
+        raise ValueError("Unknown deployment allocator")
+    return config
 
 
 def publish_policy_validation(history, policy, profit, tables, models_dir, draws=2000):
@@ -15,25 +27,42 @@ def publish_policy_validation(history, policy, profit, tables, models_dir, draws
 
     ``policy`` and ``profit`` are the already saved selection records. Return
     the combined deployment selection and the CP07 policy summary. This helper
-    neither runs a selection search nor changes a fitted model artifact.
+    neither runs a selection search nor changes a fitted model artifact. The
+    explicit deployment configuration may differ from the development winner;
+    retain both decisions rather than implying the requested policy won.
     """
     tables, models_dir = Path(tables), Path(models_dir)
     root = tables.parents[1]
     policy_out = root / "outputs/experiments/policy"
     forecast = profit["selected_model"]
-    selected = policy["selected_policy"]
-    baseline_names = {"ALL_NO_OFFER", "PROPENSITY_PCT10", "HISTORICAL_MIX", "RANDOM_FREE_SHIP"}
-    allocation_model = forecast if selected in baseline_names else selected
-    selection = {**policy, "selected_method": selected, "forecast_model": forecast,
-                 "allocation_model": allocation_model,
-                 "rule": policy["selection_metric"],
+    config = load_allocation_policy_config(root)
+    if policy.get("model_allocator") != config["allocator"]:
+        raise ValueError("Rerun policy validation using the configured greedy allocator before publication")
+    selected = forecast
+    selection = {**policy, "selected_policy": selected, "selected_method": selected,
+                 "selection_role": "Configured deployment; development comparison preserved in validation_policy_selection",
+                 "selected_config": profit["config"], "forecast_model": forecast,
+                 "allocation_model": forecast, "allocator": config["allocator"],
+                 "selection_metric": config["selection_rule"],
+                 "rule": config["selection_rule"],
+                 "deployment_selection_basis": config["selection_rule"],
+                 "allocation_policy_config": config,
+                 "validation_selected_policy": policy["selected_policy"],
+                 "validation_policy_selection": policy,
                  "prediction_selection": profit,
-                 "distinction": "Forecast model minimizes factual RMSE; allocation maximizes development constrained DR value."}
-    (models_dir / "policy_selection.json").write_text(json.dumps(selection, indent=2)+"\n", encoding="utf-8")
+                 "distinction": "Forecast model minimizes factual RMSE. Deployment uses its predictions with the user-requested greedy allocator; the development policy winner remains a separate comparison."}
     summary = pd.read_csv(policy_out / "retrospective_cp07_summary.csv")
     scores = pd.read_csv(policy_out / "retrospective_cp07_scores.csv")
     allocations = pd.read_csv(policy_out / "retrospective_cp07_allocations.csv")
+    if selected not in set(summary.policy) or selected not in set(scores.policy) or selected not in set(allocations.policy):
+        raise ValueError("The configured deployment model must have a completed greedy-policy audit")
+    for frame in (summary, allocations):
+        if ("allocation_algorithm" not in frame or
+                not frame.loc[frame.policy.eq(selected), "allocation_algorithm"].eq(config["allocator"]).all()):
+            raise ValueError("Saved deployment audit rows use a stale allocation algorithm")
+    (models_dir / "policy_selection.json").write_text(json.dumps(selection, indent=2)+"\n", encoding="utf-8")
     summary["selected_for_july"] = summary.policy.eq(selected)
+    summary["selected_by_development"] = summary.policy.eq(policy["selected_policy"])
     summary.to_csv(tables / "heldout_policy_comparison.csv", index=False)
     scores.to_csv(tables / "heldout_policy_dr_scores.csv", index=False)
     allocations.to_csv(tables / "heldout_policy_assignments.csv", index=False)
@@ -65,7 +94,7 @@ def publish_policy_validation(history, policy, profit, tables, models_dir, draws
 
 
 def run_performance_validation(history, num, cat, tables, models_dir, draws=2000):
-    """Select prediction and allocation separately on CP04-06, then audit CP07.
+    """Select prediction, compare policies, and apply the deployment choice.
 
     CP07 has been inspected before this revision. It is never an input to either
     selection rule, but the resulting audit is explicitly retrospective.
@@ -79,7 +108,8 @@ def run_performance_validation(history, num, cat, tables, models_dir, draws=2000
     policy_out = root / "outputs/experiments/policy"
     profit = run_profit_search(history, num, cat, profit_out)
     run_policy_search(history, num, cat, policy_out, draws=draws)
-    # Both development choices are now serialized before their final-model fits.
+    # Development results are serialized before their final-model fits. The
+    # deployment choice is explicit configuration, not a claim it won policy search.
     predictive_metrics, predictions = evaluate_profit_selection(history, num, cat, profit, profit_out)
     policy = json.loads((policy_out / "selection.json").read_text())
     selection, summary = publish_policy_validation(history, policy, profit, tables, models_dir, draws=draws)

@@ -10,11 +10,10 @@ from collections.abc import Iterable, Mapping
 
 import numpy as np
 import pandas as pd
-from scipy.optimize import Bounds, LinearConstraint, milp
-from scipy.sparse import coo_matrix, csr_matrix, vstack
 
 ACTIONS = ["NO_OFFER", "PCT_10", "PCT_20", "FREE_SHIP"]
 COMMERCIAL = ACTIONS[1:]
+ALLOCATOR_NAME = "deterministic_incremental_ncm_greedy"
 
 
 def _check_limits(budget, max_offer_share, max_pct20_share):
@@ -98,56 +97,107 @@ def _selected_rows(v, actions, hold):
 
 def optimize_policy(values, *, budget=62000, max_offer_share=0.6, max_pct20_share=0.15,
                     holdout_ids=(), tie_tolerance=1e-7):
-    """Maximize projected incremental NCM with scipy/HiGHS binary optimization.
+    """Return a deterministic feasible greedy allocation, not a global optimum.
 
-    First optimize dollars. A second solve, restricted to within tie_tolerance
-    dollars of that optimum, prefers fewer offers, then lower cost and stable
-    sorted variable order. Sorting makes input row order irrelevant. The primary
-    objective is never replaced by an arbitrary uplift/cost ratio.
+    1. Rank positive PCT_10/FREE_SHIP options by incremental NCM, then lower
+       cost and stable customer/action order; take affordable unassigned rows.
+    2. Rank PCT_20 candidates by additional gain over their current action.
+       Admit feasible upgrades, additions, or replacements of weaker recipients.
+       Every move checks the PCT_20 share against the actual recipient count.
+    3. Refill any remaining slots/budget with positive non-PCT_20 options.
+
+    This bounded heuristic never uses an uplift/cost ratio, gives a nonpositive
+    individual-gain offer, or sacrifices feasibility for a better objective.
+    It can miss beneficial combinations when costs or quotas interact. In the
+    current July case (one preferred offer and a slack budget), it reduces to
+    selecting the largest positive gains. ``tie_tolerance`` remains accepted
+    for caller compatibility; exact gain ordering is used instead of rounding.
     """
     _check_limits(budget, max_offer_share, max_pct20_share)
     if not np.isfinite(tie_tolerance) or tie_tolerance < 0:
         raise ValueError("tie_tolerance must be finite and nonnegative")
     v, hold = _prepare(values, holdout_ids)
     ids = v.customer_id.drop_duplicates().to_numpy()
-    n, m = len(ids), len(v)
-    commercial = v.action.ne("NO_OFFER").to_numpy(float)
-    pct20 = v.action.eq("PCT_20").to_numpy(float)
-    costs = v.estimated_promo_cost.to_numpy(float)
-    gains = v.estimated_incremental_ncm.to_numpy(float)
-    one_per_customer = coo_matrix((np.ones(m), (np.repeat(np.arange(n), len(ACTIONS)), np.arange(m))), shape=(n, m)).tocsr()
-    matrix = vstack([one_per_customer, csr_matrix(costs[None, :]), csr_matrix(commercial[None, :]),
-                     csr_matrix((pct20 - max_pct20_share * commercial)[None, :])], format="csc")
-    lo = np.r_[np.ones(n), -np.inf, -np.inf, -np.inf]
-    hi = np.r_[np.ones(n), budget, math.floor(max_offer_share * n), 0.0]
-    upper = np.ones(m)
-    upper[v.customer_id.isin(hold).to_numpy() & (commercial > 0)] = 0.0
-    bounds = Bounds(np.zeros(m), upper)
-    options = {"mip_rel_gap": 0.0, "presolve": True}
-    first = milp(-gains, integrality=np.ones(m), bounds=bounds,
-                 constraints=LinearConstraint(matrix, lo, hi), options=options)
-    if first.status != 0 or first.x is None:
-        raise RuntimeError(f"policy optimization failed: {first.message}")
-    optimum = float(gains @ np.rint(first.x))
-    secondary = commercial * (n + 1) + costs / max(1.0, costs.max())
-    secondary += (np.arange(m) + 1) / (m + 1) ** 2
-    matrix2 = vstack([matrix, csr_matrix(gains[None, :])], format="csc")
-    second = milp(secondary, integrality=np.ones(m), bounds=bounds,
-                  constraints=LinearConstraint(matrix2, np.r_[lo, optimum - tie_tolerance], np.r_[hi, np.inf]),
-                  options=options)
-    if second.status != 0 or second.x is None:
-        raise RuntimeError(f"policy tie-breaking failed: {second.message}")
-    chosen = v.loc[second.x > 0.5].copy().rename(columns={"action": "recommended_action"})
-    chosen["measurement_holdout"] = chosen.customer_id.isin(hold).astype(int)
-    chosen = chosen.reset_index(drop=True)
-    actual = float(chosen.estimated_incremental_ncm.sum())
-    if actual < optimum - max(tie_tolerance * 2, 1e-6):
-        raise RuntimeError("tie-breaking degraded the primary objective")
-    assert_feasible(chosen, budget=budget, max_offer_share=max_offer_share,
-                    max_pct20_share=max_pct20_share, holdout_ids=hold, expected_customers=ids)
-    chosen.attrs.update(solver_status="Optimal", solver="scipy.optimize.milp / HiGHS",
-                        objective=actual, primary_objective=optimum, tie_tolerance=tie_tolerance)
-    return chosen
+    n = len(ids)
+    gains = v.estimated_incremental_ncm.to_numpy(float).reshape(n, len(ACTIONS))
+    costs = v.estimated_promo_cost.to_numpy(float).reshape(n, len(ACTIONS))
+    reserved = np.array([cid in hold for cid in ids])
+    cap = min(math.floor(max_offer_share * n), int((~reserved).sum()))
+    chosen = np.zeros(n, dtype=int)
+    spend, count, n20 = 0.0, 0, 0
+    moves = dict(non_pct20_fill=0, pct20_upgrade=0, pct20_addition=0,
+                 pct20_replacement=0, non_pct20_refill=0)
+    non20 = sorted(((i, a) for i in range(n) if not reserved[i]
+                    for a in (1, 3) if gains[i, a] > 0),
+                   key=lambda x: (-gains[x], costs[x], x[0], x[1]))
+
+    def fill_non20(phase):
+        nonlocal spend, count
+        for i, action in non20:
+            if count >= cap:
+                break
+            if chosen[i] == 0 and spend + costs[i, action] <= budget + 1e-9:
+                chosen[i] = action
+                spend += costs[i, action]
+                count += 1
+                moves[phase] += 1
+
+    fill_non20("non_pct20_fill")
+    # Upgrade ranking is frozen at the beginning of this bounded pass. Each
+    # candidate's gain and feasibility are recalculated before applying it.
+    twenty = sorted((i for i in range(n) if not reserved[i] and gains[i, 2] > 0),
+                    key=lambda i: (-(gains[i, 2] - gains[i, chosen[i]]),
+                                   costs[i, 2] - costs[i, chosen[i]], i))
+    for i in twenty:
+        old = chosen[i]
+        if old == 2 or gains[i, 2] <= gains[i, old]:
+            continue
+        if old != 0:
+            new_spend = spend + costs[i, 2] - costs[i, old]
+            if n20 + 1 <= max_pct20_share * count + 1e-12 and new_spend <= budget + 1e-9:
+                chosen[i] = 2
+                spend = new_spend
+                n20 += 1
+                moves["pct20_upgrade"] += 1
+            continue
+        if (count < cap and n20 + 1 <= max_pct20_share * (count + 1) + 1e-12
+                and spend + costs[i, 2] <= budget + 1e-9):
+            chosen[i] = 2
+            spend += costs[i, 2]
+            count += 1
+            n20 += 1
+            moves["pct20_addition"] += 1
+            continue
+        # A replacement keeps the offer count fixed. Removing an existing
+        # PCT_20 also changes its numerator; removing another offer does not.
+        existing = np.flatnonzero(chosen)
+        if not len(existing):
+            continue
+        old_actions = chosen[existing]
+        feasible = ((gains[existing, old_actions] < gains[i, 2])
+                    & (spend - costs[existing, old_actions] + costs[i, 2] <= budget + 1e-9)
+                    & (n20 + 1 - (old_actions == 2) <= max_pct20_share * count + 1e-12))
+        victims = existing[feasible]
+        if len(victims):
+            victim = min(victims, key=lambda j: (gains[j, chosen[j]],
+                                                -costs[j, chosen[j]], j))
+            victim_action = chosen[victim]
+            spend += costs[i, 2] - costs[victim, victim_action]
+            n20 += 1 - int(victim_action == 2)
+            chosen[victim], chosen[i] = 0, 2
+            moves["pct20_replacement"] += 1
+    fill_non20("non_pct20_refill")
+    actions = pd.Series(np.asarray(ACTIONS)[chosen], index=ids)
+    selected = _selected_rows(v, actions, hold)
+    assert_feasible(selected, budget=budget, max_offer_share=max_offer_share,
+                    max_pct20_share=max_pct20_share, holdout_ids=hold,
+                    expected_customers=ids)
+    objective = float(selected.estimated_incremental_ncm.sum())
+    selected.attrs.update(solver_status="Feasible heuristic", allocator=ALLOCATOR_NAME,
+                          solver="Deterministic incremental-NCM greedy allocation",
+                          objective=objective, global_optimality_guaranteed=False,
+                          allocation_moves=moves, tie_tolerance=tie_tolerance)
+    return selected
 
 
 def _mix_counts(n, mix, max_pct20_share):
