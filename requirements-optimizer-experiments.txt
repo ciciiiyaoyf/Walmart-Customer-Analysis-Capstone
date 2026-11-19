@@ -1,0 +1,3 @@
+# Optional solver for scripts/compare_allocation_methods.py.
+# Install the main requirements.txt first. Production greedy needs no OR-Tools.
+ortools==9.14.6206
